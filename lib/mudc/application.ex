@@ -8,8 +8,8 @@ defmodule Mudc.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Starts a worker by calling: Mudc.Worker.start_link(arg)
-      # {Mudc.Worker, arg}
+      # Note: UI is started via mix task or manually, not supervised here
+      # See Mudc.UI.Terminal for details
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
