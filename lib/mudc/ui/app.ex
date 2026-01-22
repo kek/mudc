@@ -3,7 +3,7 @@ defmodule Mudc.UI.App do
   Main terminal UI for the MUD client using term_ui's Elm Architecture.
 
   Features:
-  - Scrollable viewport for game text
+  - Scrollable viewport for game text with ANSI color support
   - Text input for commands
   - Command history (up/down arrows)
   - Status bar showing connection status
@@ -17,13 +17,17 @@ defmodule Mudc.UI.App do
 
   use TermUI.Elm
 
+  require Logger
+
   alias TermUI.Event
   alias TermUI.Renderer.Style
   alias Mudc.Events.Bus
   alias Mudc.Network.Connection
+  alias Mudc.UI.AnsiParser
 
   @max_lines 1000
   @viewport_height 20
+  @log_viewport_height 15
 
   # ----------------------------------------------------------------------------
   # Component Callbacks
@@ -34,6 +38,9 @@ defmodule Mudc.UI.App do
     Bus.subscribe(:game_text)
     Bus.subscribe(:connection)
     Bus.subscribe(:state_changed)
+
+    # Subscribe to log updates
+    Mudc.UI.LogBuffer.subscribe()
 
     %{
       # Game text lines (newest at the end)
@@ -54,7 +61,12 @@ defmodule Mudc.UI.App do
 
       # GMCP data
       vitals: %{},
-      room: %{}
+      room: %{},
+
+      # Log viewer state
+      show_logs: false,
+      log_lines: [],
+      log_scroll_offset: 0
     }
   end
 
@@ -102,6 +114,20 @@ defmodule Mudc.UI.App do
 
   def event_to_msg(%Event.Key{char: char}, _state) when is_binary(char) and char != "" do
     {:msg, {:char, char}}
+  end
+
+  # F8 toggles log viewer
+  def event_to_msg(%Event.Key{key: :f8}, _state) do
+    {:msg, :toggle_logs}
+  end
+
+  # When log viewer is open, Page Up/Down scrolls logs
+  def event_to_msg(%Event.Key{key: :page_up}, %{show_logs: true}) do
+    {:msg, {:scroll_logs, -10}}
+  end
+
+  def event_to_msg(%Event.Key{key: :page_down}, %{show_logs: true}) do
+    {:msg, {:scroll_logs, 10}}
   end
 
   def event_to_msg(_event, _state) do
@@ -205,6 +231,27 @@ defmodule Mudc.UI.App do
     {state, [:quit]}
   end
 
+  def update(:toggle_logs, state) do
+    new_show = not state.show_logs
+
+    # Load current logs when showing
+    log_lines =
+      if new_show do
+        Mudc.UI.LogBuffer.get_logs()
+      else
+        state.log_lines
+      end
+
+    {%{state | show_logs: new_show, log_lines: log_lines, log_scroll_offset: 0}, []}
+  end
+
+  def update({:scroll_logs, delta}, state) do
+    max_scroll = max(0, length(state.log_lines) - @log_viewport_height)
+    new_offset = state.log_scroll_offset + delta
+    new_offset = max(0, min(max_scroll, new_offset))
+    {%{state | log_scroll_offset: new_offset}, []}
+  end
+
   def update(_msg, state) do
     {state, []}
   end
@@ -263,19 +310,40 @@ defmodule Mudc.UI.App do
     {%{state | room: room}, []}
   end
 
+  # Handle log buffer updates
+  def handle_info({:log_update, lines}, state) do
+    # Only update if log viewer is visible
+    if state.show_logs do
+      {%{state | log_lines: Enum.reverse(lines)}, []}
+    else
+      {state, []}
+    end
+  end
+
   def handle_info(_msg, state) do
     {state, []}
   end
 
   def view(state) do
-    stack(:vertical, [
-      render_header(state),
-      render_vitals_bar(state),
-      render_viewport(state),
-      text(""),
-      render_input(state),
-      render_status_bar(state)
-    ])
+    main_view =
+      stack(:vertical, [
+        render_header(state),
+        render_vitals_bar(state),
+        render_viewport(state),
+        text(""),
+        render_input(state),
+        render_status_bar(state)
+      ])
+
+    if state.show_logs do
+      stack(:vertical, [
+        main_view,
+        text(""),
+        render_log_window(state)
+      ])
+    else
+      main_view
+    end
   end
 
   # ----------------------------------------------------------------------------
@@ -360,6 +428,31 @@ defmodule Mudc.UI.App do
     Style.new(fg: :white)
   end
 
+  # Render a single line with ANSI color support
+  defp render_ansi_line(""), do: text("")
+
+  defp render_ansi_line(line) do
+    segments = AnsiParser.parse(line)
+
+    case segments do
+      [] ->
+        text("")
+
+      [{text_content, nil}] ->
+        # Single unstyled segment - simple case
+        text(text_content)
+
+      [{text_content, style}] ->
+        # Single styled segment
+        text(text_content, style)
+
+      _ ->
+        # Multiple segments - render as horizontal stack
+        nodes = AnsiParser.to_render_nodes(segments)
+        stack(:horizontal, nodes)
+    end
+  end
+
   defp render_viewport(state) do
     visible_lines =
       state.lines
@@ -372,9 +465,8 @@ defmodule Mudc.UI.App do
 
     line_elements =
       Enum.map(visible_lines, fn line ->
-        # Truncate long lines
-        truncated = String.slice(line, 0, 78)
-        text(truncated)
+        # Parse ANSI escape sequences and render as styled text
+        render_ansi_line(line)
       end)
 
     # Build viewport with border
@@ -426,12 +518,64 @@ defmodule Mudc.UI.App do
     text(status, Style.new(fg: :yellow, attrs: [:dim]))
   end
 
+  defp render_log_window(state) do
+    header_style = Style.new(fg: :magenta, attrs: [:bold])
+    border_style = Style.new(fg: :magenta)
+
+    visible_lines =
+      state.log_lines
+      |> Enum.drop(state.log_scroll_offset)
+      |> Enum.take(@log_viewport_height)
+
+    # Pad with empty lines if needed
+    visible_lines =
+      visible_lines ++ List.duplicate("", @log_viewport_height - length(visible_lines))
+
+    total_logs = length(state.log_lines)
+
+    scroll_info =
+      if total_logs > 0 do
+        first = state.log_scroll_offset + 1
+        last = min(state.log_scroll_offset + @log_viewport_height, total_logs)
+        " #{first}-#{last}/#{total_logs}"
+      else
+        " 0/0"
+      end
+
+    top_border = "+--- LOGS (F8 to close, PgUp/PgDn to scroll)" <> String.duplicate("-", 30) <> scroll_info <> " +"
+    bottom_border = "+" <> String.duplicate("-", 78) <> "+"
+
+    line_elements =
+      Enum.map(visible_lines, fn line ->
+        # Truncate long lines
+        truncated = String.slice(line, 0, 76)
+        text(truncated, Style.new(fg: :white, attrs: [:dim]))
+      end)
+
+    content =
+      Enum.map(line_elements, fn elem ->
+        stack(:horizontal, [
+          text("| ", border_style),
+          elem
+        ])
+      end)
+
+    stack(:vertical, [
+      text(top_border, header_style),
+      stack(:vertical, content),
+      text(bottom_border, border_style)
+    ])
+  end
+
   # ----------------------------------------------------------------------------
   # Public API
   # ----------------------------------------------------------------------------
 
   @doc """
   Run the MUD client UI.
+
+  Logs are captured by our custom LogHandler and can be viewed
+  by pressing F8 to toggle the log window.
   """
   def run do
     TermUI.Runtime.run(root: __MODULE__)

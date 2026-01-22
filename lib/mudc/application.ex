@@ -3,6 +3,7 @@ defmodule Mudc.Application do
   OTP Application for Mudc MUD client.
 
   Supervision tree:
+  - Mudc.UI.LogBuffer (log message buffer for UI display)
   - Mudc.Events.Bus (Registry-based PubSub)
   - Mudc.Config.Manager (TOML configuration)
   - Mudc.State.GameState (ETS-backed game state)
@@ -17,7 +18,10 @@ defmodule Mudc.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Event bus must start first (other components publish to it)
+      # Log buffer must start first (logger handler needs it)
+      Mudc.UI.LogBuffer,
+
+      # Event bus must start early (other components publish to it)
       Mudc.Events.Bus,
 
       # Configuration manager (loads before other components)
@@ -40,6 +44,11 @@ defmodule Mudc.Application do
     ]
 
     opts = [strategy: :one_for_one, name: Mudc.Supervisor]
-    Supervisor.start_link(children, opts)
+    result = Supervisor.start_link(children, opts)
+
+    # Attach our custom log handler after LogBuffer is started
+    Mudc.UI.LogHandler.attach()
+
+    result
   end
 end
