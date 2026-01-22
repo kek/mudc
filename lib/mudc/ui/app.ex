@@ -95,14 +95,6 @@ defmodule Mudc.UI.App do
     {:msg, :history_next}
   end
 
-  def event_to_msg(%Event.Key{key: :page_up}, state) do
-    {:msg, {:scroll, -state.viewport_height}}
-  end
-
-  def event_to_msg(%Event.Key{key: :page_down}, state) do
-    {:msg, {:scroll, state.viewport_height}}
-  end
-
   def event_to_msg(%Event.Key{key: :backspace}, _state) do
     {:msg, :backspace}
   end
@@ -132,13 +124,22 @@ defmodule Mudc.UI.App do
     {:msg, :toggle_logs}
   end
 
-  # When log viewer is open, Page Up/Down scrolls logs
+  # When log viewer is open, Page Up/Down scrolls logs (must come before general page up/down)
   def event_to_msg(%Event.Key{key: :page_up}, %{show_logs: true}) do
     {:msg, {:scroll_logs, -10}}
   end
 
   def event_to_msg(%Event.Key{key: :page_down}, %{show_logs: true}) do
     {:msg, {:scroll_logs, 10}}
+  end
+
+  # General page up/down for game text scrolling (when logs are not shown)
+  def event_to_msg(%Event.Key{key: :page_up}, state) do
+    {:msg, {:scroll, -state.viewport_height}}
+  end
+
+  def event_to_msg(%Event.Key{key: :page_down}, state) do
+    {:msg, {:scroll, state.viewport_height}}
   end
 
   # Handle terminal resize
@@ -251,17 +252,20 @@ defmodule Mudc.UI.App do
     max_scroll = max(0, length(state.lines) - viewport_height)
     scroll_offset = min(state.scroll_offset, max_scroll)
 
-    max_log_scroll = max(0, length(state.log_lines) - log_viewport_height)
+    # Calculate actual popup viewport height
+    actual_log_viewport_height = calculate_log_popup_viewport_height(height)
+    max_log_scroll = max(0, length(state.log_lines) - actual_log_viewport_height)
     log_scroll_offset = min(state.log_scroll_offset, max_log_scroll)
 
-    {%{state |
-       term_width: width,
-       term_height: height,
-       viewport_height: viewport_height,
-       log_viewport_height: log_viewport_height,
-       scroll_offset: scroll_offset,
-       log_scroll_offset: log_scroll_offset
-    }, []}
+    {%{
+       state
+       | term_width: width,
+         term_height: height,
+         viewport_height: viewport_height,
+         log_viewport_height: log_viewport_height,
+         scroll_offset: scroll_offset,
+         log_scroll_offset: log_scroll_offset
+     }, []}
   end
 
   def update(:quit, state) do
@@ -283,7 +287,10 @@ defmodule Mudc.UI.App do
   end
 
   def update({:scroll_logs, delta}, state) do
-    max_scroll = max(0, length(state.log_lines) - state.log_viewport_height)
+    # Calculate actual popup viewport height
+    actual_log_viewport_height = calculate_log_popup_viewport_height(state.term_height)
+
+    max_scroll = max(0, length(state.log_lines) - actual_log_viewport_height)
     new_offset = state.log_scroll_offset + delta
     new_offset = max(0, min(max_scroll, new_offset))
     {%{state | log_scroll_offset: new_offset}, []}
@@ -373,11 +380,8 @@ defmodule Mudc.UI.App do
       ])
 
     if state.show_logs do
-      stack(:vertical, [
-        main_view,
-        text(""),
-        render_log_window(state)
-      ])
+      # Render log popup as overlay - completely replace the view
+      render_log_popup_overlay(state)
     else
       main_view
     end
@@ -517,7 +521,11 @@ defmodule Mudc.UI.App do
     # Use terminal width for borders, minus 2 for the "| " prefix
     border_width = max(state.term_width - 2, 20)
     scroll_info_len = String.length(scroll_info)
-    top_border = "+" <> String.duplicate("-", border_width - scroll_info_len - 3) <> " " <> scroll_info <> " +"
+
+    top_border =
+      "+" <>
+        String.duplicate("-", border_width - scroll_info_len - 3) <> " " <> scroll_info <> " +"
+
     bottom_border = "+" <> String.duplicate("-", border_width) <> "+"
 
     content =
@@ -560,10 +568,20 @@ defmodule Mudc.UI.App do
     text(status, Style.new(fg: :yellow, attrs: [:dim]))
   end
 
-  defp render_log_window(state) do
-    header_style = Style.new(fg: :magenta, attrs: [:bold])
-    border_style = Style.new(fg: :magenta)
-    log_viewport_height = state.log_viewport_height
+  defp render_log_popup_overlay(state) do
+    header_style = Style.new(fg: :yellow, bg: :black, attrs: [:bold])
+    border_style = Style.new(fg: :yellow, bg: :black, attrs: [:bold])
+    content_style = Style.new(fg: :white, bg: :black)
+
+    # Calculate popup dimensions - use 80% of terminal size, min 40 cols x 15 rows
+    popup_width = max(div(state.term_width * 4, 5), 40)
+    popup_height = max(div(state.term_height * 4, 5), 15)
+    # Subtract borders and header (4 lines)
+    log_viewport_height = calculate_log_popup_viewport_height(state.term_height)
+
+    # Calculate centering margins
+    left_margin = max(div(state.term_width - popup_width, 2), 0)
+    top_margin = max(div(state.term_height - popup_height, 2), 0)
 
     visible_lines =
       state.log_lines
@@ -580,44 +598,76 @@ defmodule Mudc.UI.App do
       if total_logs > 0 do
         first = state.log_scroll_offset + 1
         last = min(state.log_scroll_offset + log_viewport_height, total_logs)
-        " #{first}-#{last}/#{total_logs}"
+        " #{first}-#{last}/#{total_logs} "
       else
-        " 0/0"
+        " 0/0 "
       end
 
-    border_width = max(state.term_width - 2, 20)
-    header_text = "+--- LOGS (F8 to close, PgUp/PgDn to scroll)"
-    header_len = String.length(header_text)
-    scroll_info_len = String.length(scroll_info)
-    dash_count = max(border_width - header_len - scroll_info_len - 2, 0)
-    top_border = header_text <> String.duplicate("-", dash_count) <> scroll_info <> " +"
-    bottom_border = "+" <> String.duplicate("-", border_width) <> "+"
+    # Build centered popup
+    inner_width = popup_width - 4
+    header_text = " LOGS - Press F8 to close, PgUp/PgDn to scroll "
+    header_padding = max(inner_width - String.length(header_text) - String.length(scroll_info), 0)
 
-    line_elements =
+    top_border = "╔" <> String.duplicate("═", popup_width - 2) <> "╗"
+
+    header_line =
+      "║ " <> header_text <> String.duplicate(" ", header_padding) <> scroll_info <> "║"
+
+    separator = "╠" <> String.duplicate("═", popup_width - 2) <> "╣"
+    bottom_border = "╚" <> String.duplicate("═", popup_width - 2) <> "╝"
+
+    # Create empty background lines to fill screen
+    empty_line = String.duplicate(" ", state.term_width)
+    background_style = Style.new(fg: :black, bg: :black, attrs: [:dim])
+
+    # Top padding before popup
+    top_padding = List.duplicate(text(empty_line, background_style), top_margin)
+
+    # Bottom padding after popup
+    bottom_padding_count = max(state.term_height - popup_height - top_margin, 0)
+    bottom_padding = List.duplicate(text(empty_line, background_style), bottom_padding_count)
+
+    # Render log content lines with margins
+    margin = String.duplicate(" ", left_margin)
+    right_margin_size = max(state.term_width - popup_width - left_margin, 0)
+    right_margin = String.duplicate(" ", right_margin_size)
+
+    content_lines =
       Enum.map(visible_lines, fn line ->
-        # Truncate long lines based on terminal width
-        truncated = String.slice(line, 0, max(state.term_width - 4, 20))
-        text(truncated, Style.new(fg: :white, attrs: [:dim]))
+        # Truncate and pad line to fit popup width
+        truncated = String.slice(line, 0, inner_width)
+        padded = String.pad_trailing(truncated, inner_width)
+        padded_line = "║ " <> padded <> " ║"
+        text(margin <> padded_line <> right_margin, content_style)
       end)
 
-    content =
-      Enum.map(line_elements, fn elem ->
-        stack(:horizontal, [
-          text("| ", border_style),
-          elem
-        ])
-      end)
-
-    stack(:vertical, [
-      text(top_border, header_style),
-      stack(:vertical, content),
-      text(bottom_border, border_style)
-    ])
+    # Build full screen with popup centered
+    stack(
+      :vertical,
+      top_padding ++
+        [
+          text(margin <> top_border <> right_margin, border_style),
+          text(margin <> header_line <> right_margin, header_style),
+          text(margin <> separator <> right_margin, border_style)
+        ] ++
+        content_lines ++
+        [
+          text(margin <> bottom_border <> right_margin, border_style)
+        ] ++
+        bottom_padding
+    )
   end
 
   # ----------------------------------------------------------------------------
   # Terminal Size Helpers
   # ----------------------------------------------------------------------------
+
+  defp calculate_log_popup_viewport_height(term_height) do
+    # Calculate popup dimensions - use 80% of terminal size, min 15 rows
+    popup_height = max(div(term_height * 4, 5), 15)
+    # Subtract borders and header (4 lines: top border, header, separator, bottom border)
+    max(popup_height - 4, 5)
+  end
 
   defp get_terminal_size do
     case Terminal.get_terminal_size() do
