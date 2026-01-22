@@ -9,6 +9,7 @@ defmodule Mudc.Network.Connection do
   use GenServer
   require Logger
 
+  alias Mudc.Config.Manager, as: Config
   alias Mudc.Events.Bus
   alias Mudc.Protocol.Dispatcher
 
@@ -58,8 +59,14 @@ defmodule Mudc.Network.Connection do
 
   @impl true
   def init(opts) do
-    host = Keyword.get(opts, :host, @default_host)
-    port = Keyword.get(opts, :port, @default_port)
+    # Read from config, with opts overriding config values
+    config_host = Config.get(:connection, :host) || "localhost"
+    config_port = Config.get(:connection, :port) || @default_port
+    config_auto_connect = Config.get(:connection, :auto_connect) || false
+
+    host = Keyword.get(opts, :host, to_charlist(config_host))
+    port = Keyword.get(opts, :port, config_port)
+    auto_connect = Keyword.get(opts, :auto_connect, config_auto_connect)
 
     state = %__MODULE__{
       socket: nil,
@@ -69,7 +76,7 @@ defmodule Mudc.Network.Connection do
     }
 
     # Auto-connect if configured
-    if Keyword.get(opts, :auto_connect, false) do
+    if auto_connect do
       send(self(), :auto_connect)
     end
 

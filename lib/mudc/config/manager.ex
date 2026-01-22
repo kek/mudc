@@ -11,7 +11,7 @@ defmodule Mudc.Config.Manager do
   [connection]
   host = "localhost"
   port = 4242
-  auto_connect = false
+  auto_connect = true
 
   [ui]
   viewport_height = 20
@@ -42,7 +42,7 @@ defmodule Mudc.Config.Manager do
     connection: %{
       host: "localhost",
       port: 4242,
-      auto_connect: false
+      auto_connect: true
     },
     ui: %{
       viewport_height: 20,

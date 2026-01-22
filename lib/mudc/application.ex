@@ -39,6 +39,9 @@ defmodule Mudc.Application do
       # Network connection
       Mudc.Network.Connection,
 
+      # Auto-login handler (sends credentials from env vars when prompted)
+      Mudc.Network.AutoLogin,
+
       # Lua scripting engine
       Mudc.Scripting.Engine
     ]
