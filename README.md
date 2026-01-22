@@ -1,21 +1,22 @@
 # Mudc
 
-**TODO: Add description**
+## Prior art
 
-## Installation
+- Mudlet
+- Tinyfugue
+- Tintin++
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `mudc` to your list of dependencies in `mix.exs`:
+## Integrations
 
-```elixir
-def deps do
-  [
-    {:mudc, "~> 0.1.0"}
-  ]
-end
-```
+- MMapper https://github.com/MUME/MMapper
+- Telnet
+- GMCP
+- Luerl
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/mudc>.
+
+## Toolkit
+
+- Elixir
+- OTP
+- pcharbon70/term_ui
 
