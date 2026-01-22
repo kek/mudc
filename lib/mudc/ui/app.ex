@@ -21,13 +21,14 @@ defmodule Mudc.UI.App do
 
   alias TermUI.Event
   alias TermUI.Renderer.Style
+  alias TermUI.Terminal
   alias Mudc.Events.Bus
   alias Mudc.Network.Connection
   alias Mudc.UI.AnsiParser
 
   @max_lines 1000
-  @viewport_height 20
-  @log_viewport_height 15
+  # Reserved lines: header(1) + vitals(1) + top_border(1) + bottom_border(1) + empty(1) + input(1) + status(1) = 7
+  @reserved_lines 7
 
   # ----------------------------------------------------------------------------
   # Component Callbacks
@@ -42,7 +43,17 @@ defmodule Mudc.UI.App do
     # Subscribe to log updates
     Mudc.UI.LogBuffer.subscribe()
 
+    # Get initial terminal dimensions
+    {width, height} = get_terminal_size()
+    viewport_height = calculate_viewport_height(height)
+
     %{
+      # Terminal dimensions
+      term_width: width,
+      term_height: height,
+      viewport_height: viewport_height,
+      log_viewport_height: div(viewport_height, 2),
+
       # Game text lines (newest at the end)
       lines: ["Welcome to Mudc - MUME Client", "Type commands and press Enter to send"],
       scroll_offset: 0,
@@ -84,12 +95,12 @@ defmodule Mudc.UI.App do
     {:msg, :history_next}
   end
 
-  def event_to_msg(%Event.Key{key: :page_up}, _state) do
-    {:msg, {:scroll, -@viewport_height}}
+  def event_to_msg(%Event.Key{key: :page_up}, state) do
+    {:msg, {:scroll, -state.viewport_height}}
   end
 
-  def event_to_msg(%Event.Key{key: :page_down}, _state) do
-    {:msg, {:scroll, @viewport_height}}
+  def event_to_msg(%Event.Key{key: :page_down}, state) do
+    {:msg, {:scroll, state.viewport_height}}
   end
 
   def event_to_msg(%Event.Key{key: :backspace}, _state) do
@@ -128,6 +139,11 @@ defmodule Mudc.UI.App do
 
   def event_to_msg(%Event.Key{key: :page_down}, %{show_logs: true}) do
     {:msg, {:scroll_logs, 10}}
+  end
+
+  # Handle terminal resize
+  def event_to_msg(%Event.Resize{width: width, height: height}, _state) do
+    {:msg, {:resize, width, height}}
   end
 
   def event_to_msg(_event, _state) do
@@ -211,7 +227,7 @@ defmodule Mudc.UI.App do
   end
 
   def update({:scroll, delta}, state) do
-    max_scroll = max(0, length(state.lines) - @viewport_height)
+    max_scroll = max(0, length(state.lines) - state.viewport_height)
     new_offset = state.scroll_offset + delta
     new_offset = max(0, min(max_scroll, new_offset))
     auto_scroll = new_offset >= max_scroll
@@ -223,8 +239,29 @@ defmodule Mudc.UI.App do
   end
 
   def update(:scroll_bottom, state) do
-    max_scroll = max(0, length(state.lines) - @viewport_height)
+    max_scroll = max(0, length(state.lines) - state.viewport_height)
     {%{state | scroll_offset: max_scroll, auto_scroll: true}, []}
+  end
+
+  def update({:resize, width, height}, state) do
+    viewport_height = calculate_viewport_height(height)
+    log_viewport_height = div(viewport_height, 2)
+
+    # Adjust scroll offsets if needed
+    max_scroll = max(0, length(state.lines) - viewport_height)
+    scroll_offset = min(state.scroll_offset, max_scroll)
+
+    max_log_scroll = max(0, length(state.log_lines) - log_viewport_height)
+    log_scroll_offset = min(state.log_scroll_offset, max_log_scroll)
+
+    {%{state |
+       term_width: width,
+       term_height: height,
+       viewport_height: viewport_height,
+       log_viewport_height: log_viewport_height,
+       scroll_offset: scroll_offset,
+       log_scroll_offset: log_scroll_offset
+    }, []}
   end
 
   def update(:quit, state) do
@@ -246,7 +283,7 @@ defmodule Mudc.UI.App do
   end
 
   def update({:scroll_logs, delta}, state) do
-    max_scroll = max(0, length(state.log_lines) - @log_viewport_height)
+    max_scroll = max(0, length(state.log_lines) - state.log_viewport_height)
     new_offset = state.log_scroll_offset + delta
     new_offset = max(0, min(max_scroll, new_offset))
     {%{state | log_scroll_offset: new_offset}, []}
@@ -357,7 +394,7 @@ defmodule Mudc.UI.App do
     # Auto-scroll if enabled
     scroll_offset =
       if state.auto_scroll do
-        max(0, length(lines) - @viewport_height)
+        max(0, length(lines) - state.viewport_height)
       else
         state.scroll_offset
       end
@@ -454,14 +491,16 @@ defmodule Mudc.UI.App do
   end
 
   defp render_viewport(state) do
+    viewport_height = state.viewport_height
+
     visible_lines =
       state.lines
       |> Enum.drop(state.scroll_offset)
-      |> Enum.take(@viewport_height)
+      |> Enum.take(viewport_height)
 
     # Pad with empty lines if needed
     visible_lines =
-      visible_lines ++ List.duplicate("", @viewport_height - length(visible_lines))
+      visible_lines ++ List.duplicate("", viewport_height - length(visible_lines))
 
     line_elements =
       Enum.map(visible_lines, fn line ->
@@ -473,10 +512,13 @@ defmodule Mudc.UI.App do
     total_lines = length(state.lines)
 
     scroll_info =
-      "#{state.scroll_offset + 1}-#{min(state.scroll_offset + @viewport_height, total_lines)}/#{total_lines}"
+      "#{state.scroll_offset + 1}-#{min(state.scroll_offset + viewport_height, total_lines)}/#{total_lines}"
 
-    top_border = "+" <> String.duplicate("-", 68) <> " " <> scroll_info <> " +"
-    bottom_border = "+" <> String.duplicate("-", 78) <> "+"
+    # Use terminal width for borders, minus 2 for the "| " prefix
+    border_width = max(state.term_width - 2, 20)
+    scroll_info_len = String.length(scroll_info)
+    top_border = "+" <> String.duplicate("-", border_width - scroll_info_len - 3) <> " " <> scroll_info <> " +"
+    bottom_border = "+" <> String.duplicate("-", border_width) <> "+"
 
     content =
       Enum.map(line_elements, fn elem ->
@@ -521,34 +563,40 @@ defmodule Mudc.UI.App do
   defp render_log_window(state) do
     header_style = Style.new(fg: :magenta, attrs: [:bold])
     border_style = Style.new(fg: :magenta)
+    log_viewport_height = state.log_viewport_height
 
     visible_lines =
       state.log_lines
       |> Enum.drop(state.log_scroll_offset)
-      |> Enum.take(@log_viewport_height)
+      |> Enum.take(log_viewport_height)
 
     # Pad with empty lines if needed
     visible_lines =
-      visible_lines ++ List.duplicate("", @log_viewport_height - length(visible_lines))
+      visible_lines ++ List.duplicate("", log_viewport_height - length(visible_lines))
 
     total_logs = length(state.log_lines)
 
     scroll_info =
       if total_logs > 0 do
         first = state.log_scroll_offset + 1
-        last = min(state.log_scroll_offset + @log_viewport_height, total_logs)
+        last = min(state.log_scroll_offset + log_viewport_height, total_logs)
         " #{first}-#{last}/#{total_logs}"
       else
         " 0/0"
       end
 
-    top_border = "+--- LOGS (F8 to close, PgUp/PgDn to scroll)" <> String.duplicate("-", 30) <> scroll_info <> " +"
-    bottom_border = "+" <> String.duplicate("-", 78) <> "+"
+    border_width = max(state.term_width - 2, 20)
+    header_text = "+--- LOGS (F8 to close, PgUp/PgDn to scroll)"
+    header_len = String.length(header_text)
+    scroll_info_len = String.length(scroll_info)
+    dash_count = max(border_width - header_len - scroll_info_len - 2, 0)
+    top_border = header_text <> String.duplicate("-", dash_count) <> scroll_info <> " +"
+    bottom_border = "+" <> String.duplicate("-", border_width) <> "+"
 
     line_elements =
       Enum.map(visible_lines, fn line ->
-        # Truncate long lines
-        truncated = String.slice(line, 0, 76)
+        # Truncate long lines based on terminal width
+        truncated = String.slice(line, 0, max(state.term_width - 4, 20))
         text(truncated, Style.new(fg: :white, attrs: [:dim]))
       end)
 
@@ -565,6 +613,22 @@ defmodule Mudc.UI.App do
       stack(:vertical, content),
       text(bottom_border, border_style)
     ])
+  end
+
+  # ----------------------------------------------------------------------------
+  # Terminal Size Helpers
+  # ----------------------------------------------------------------------------
+
+  defp get_terminal_size do
+    case Terminal.get_terminal_size() do
+      {:ok, {rows, cols}} -> {cols, rows}
+      {:error, _} -> {80, 24}
+    end
+  end
+
+  defp calculate_viewport_height(term_height) do
+    # Calculate viewport height based on terminal height minus reserved lines
+    max(term_height - @reserved_lines, 5)
   end
 
   # ----------------------------------------------------------------------------
