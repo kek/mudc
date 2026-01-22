@@ -19,7 +19,6 @@ defmodule Mudc.UI.App do
 
   alias TermUI.Event
   alias TermUI.Renderer.Style
-  alias TermUI.Widgets.TextInput, as: TI
   alias Mudc.Events.Bus
   alias Mudc.Network.Connection
 
@@ -36,23 +35,14 @@ defmodule Mudc.UI.App do
     Bus.subscribe(:connection)
     Bus.subscribe(:state_changed)
 
-    # Create text input for commands
-    input_props =
-      TI.new(
-        placeholder: "Enter command...",
-        width: 78
-      )
-
-    {:ok, input_state} = TI.init(input_props)
-
     %{
       # Game text lines (newest at the end)
-      lines: [],
+      lines: ["Welcome to Mudc - MUME Client", "Type commands and press Enter to send"],
       scroll_offset: 0,
       auto_scroll: true,
 
-      # Command input
-      input: TI.set_focused(input_state, true),
+      # Command input (simple string buffer)
+      input_buffer: "",
 
       # Command history
       history: [],
@@ -60,7 +50,7 @@ defmodule Mudc.UI.App do
 
       # Connection status
       connected: false,
-      status_message: "Not connected",
+      status_message: "Not connected - press 'c' to connect",
 
       # GMCP data
       vitals: %{},
@@ -69,8 +59,7 @@ defmodule Mudc.UI.App do
   end
 
   def event_to_msg(%Event.Key{key: :enter}, state) do
-    command = TI.get_value(state.input)
-    {:msg, {:send_command, command}}
+    {:msg, {:send_command, state.input_buffer}}
   end
 
   def event_to_msg(%Event.Key{key: :up, modifiers: mods}, %{history: history})
@@ -91,57 +80,82 @@ defmodule Mudc.UI.App do
     {:msg, {:scroll, @viewport_height}}
   end
 
-  def event_to_msg(%Event.Key{key: :home} = event, _state) do
-    if Event.has_modifier?(event, :ctrl) do
-      {:msg, :scroll_top}
-    else
-      {:msg, {:input_event, event}}
-    end
-  end
-
-  def event_to_msg(%Event.Key{key: :end} = event, _state) do
-    if Event.has_modifier?(event, :ctrl) do
-      {:msg, :scroll_bottom}
-    else
-      {:msg, {:input_event, event}}
-    end
+  def event_to_msg(%Event.Key{key: :backspace}, _state) do
+    {:msg, :backspace}
   end
 
   def event_to_msg(%Event.Key{key: "c"} = event, _state) do
     if Event.has_modifier?(event, :ctrl) do
       {:msg, :quit}
     else
-      {:msg, {:input_event, event}}
+      {:msg, {:char, "c"}}
     end
   end
 
-  def event_to_msg(event, _state) do
-    {:msg, {:input_event, event}}
+  def event_to_msg(%Event.Key{key: "q"} = event, _state) do
+    if Event.has_modifier?(event, :ctrl) do
+      {:msg, :quit}
+    else
+      {:msg, {:char, "q"}}
+    end
+  end
+
+  def event_to_msg(%Event.Key{char: char}, _state) when is_binary(char) and char != "" do
+    {:msg, {:char, char}}
+  end
+
+  def event_to_msg(_event, _state) do
+    :ignore
   end
 
   def update({:send_command, ""}, state) do
-    # Empty command, do nothing
     {state, []}
   end
 
   def update({:send_command, command}, state) do
-    # Send command to server
-    case Connection.send_command(command) do
-      :ok ->
-        # Add to history and clear input
-        history = [command | state.history] |> Enum.take(100)
-        input = TI.clear(state.input)
+    # Check for local commands
+    case command do
+      "/connect" ->
+        Connection.connect()
+        {%{state | input_buffer: ""}, []}
 
-        {%{state | input: input, history: history, history_index: nil}, []}
+      "/disconnect" ->
+        Connection.disconnect()
+        {%{state | input_buffer: ""}, []}
 
-      {:error, :not_connected} ->
-        new_state = add_local_line(state, "[Not connected - use /connect to connect]")
-        {new_state, []}
+      "/quit" ->
+        {state, [:quit]}
 
-      {:error, reason} ->
-        new_state = add_local_line(state, "[Send error: #{inspect(reason)}]")
-        {new_state, []}
+      _ ->
+        case Connection.send_command(command) do
+          :ok ->
+            history = [command | state.history] |> Enum.take(100)
+            {%{state | input_buffer: "", history: history, history_index: nil}, []}
+
+          {:error, :not_connected} ->
+            new_state = add_local_line(state, "[Not connected - type /connect]")
+            {%{new_state | input_buffer: ""}, []}
+
+          {:error, reason} ->
+            new_state = add_local_line(state, "[Send error: #{inspect(reason)}]")
+            {new_state, []}
+        end
     end
+  end
+
+  def update({:char, char}, state) do
+    {%{state | input_buffer: state.input_buffer <> char}, []}
+  end
+
+  def update(:backspace, state) do
+    new_buffer =
+      if String.length(state.input_buffer) > 0 do
+        String.slice(state.input_buffer, 0..-2//1)
+      else
+        ""
+      end
+
+    {%{state | input_buffer: new_buffer}, []}
   end
 
   def update(:history_prev, state) do
@@ -152,8 +166,7 @@ defmodule Mudc.UI.App do
       end
 
     command = Enum.at(state.history, new_index, "")
-    input = TI.set_value(state.input, command)
-    {%{state | input: input, history_index: new_index}, []}
+    {%{state | input_buffer: command, history_index: new_index}, []}
   end
 
   def update(:history_next, state) do
@@ -162,14 +175,12 @@ defmodule Mudc.UI.App do
         {state, []}
 
       0 ->
-        input = TI.clear(state.input)
-        {%{state | input: input, history_index: nil}, []}
+        {%{state | input_buffer: "", history_index: nil}, []}
 
       idx ->
         new_index = idx - 1
         command = Enum.at(state.history, new_index, "")
-        input = TI.set_value(state.input, command)
-        {%{state | input: input, history_index: new_index}, []}
+        {%{state | input_buffer: command, history_index: new_index}, []}
     end
   end
 
@@ -190,18 +201,8 @@ defmodule Mudc.UI.App do
     {%{state | scroll_offset: max_scroll, auto_scroll: true}, []}
   end
 
-  def update({:input_event, event}, state) do
-    {:ok, new_input} = TI.handle_event(event, state.input)
-    {%{state | input: new_input}, []}
-  end
-
   def update(:quit, state) do
     {state, [:quit]}
-  end
-
-  def update(:connect, state) do
-    Connection.connect()
-    {state, []}
   end
 
   def update(_msg, state) do
@@ -402,11 +403,14 @@ defmodule Mudc.UI.App do
 
   defp render_input(state) do
     border_style = Style.new(fg: :green)
+    # Show cursor as underscore at end of input
+    cursor = "_"
+    display_text = state.input_buffer <> cursor
 
     stack(:vertical, [
       stack(:horizontal, [
         text("> ", border_style),
-        TI.render(state.input, %{width: 76, height: 1})
+        text(display_text)
       ])
     ])
   end
