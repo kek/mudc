@@ -794,7 +794,6 @@ defmodule Mudc.UI.App do
     content =
       Enum.map(line_elements, fn elem ->
         stack(:horizontal, [
-          text("| "),
           elem
         ])
       end)
