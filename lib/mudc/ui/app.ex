@@ -55,7 +55,10 @@ defmodule Mudc.UI.App do
       log_viewport_height: div(viewport_height, 2),
 
       # Game text lines (newest at the end)
-      lines: ["Welcome to Mudc - MUME Client", "Type commands and press Enter to send"],
+      lines: [
+        "Welcome to Mudc - MUME Client",
+        "Type /connect to connect, /disconnect to disconnect, /quit to exit"
+      ],
       scroll_offset: 0,
       auto_scroll: true,
 
@@ -68,7 +71,7 @@ defmodule Mudc.UI.App do
 
       # Connection status
       connected: false,
-      status_message: "Not connected - press 'c' to connect",
+      status_message: "Connecting...",
 
       # GMCP data
       vitals: %{},
@@ -176,7 +179,7 @@ defmodule Mudc.UI.App do
             {%{state | input_buffer: "", history: history, history_index: nil}, []}
 
           {:error, :not_connected} ->
-            new_state = add_local_line(state, "[Not connected - type /connect]")
+            new_state = add_local_line(state, "[Not connected - use /connect to connect]")
             {%{new_state | input_buffer: ""}, []}
 
           {:error, reason} ->
@@ -338,10 +341,13 @@ defmodule Mudc.UI.App do
   end
 
   def handle_info({:event, :connection, {:error, reason}}, state) do
+    error_msg = format_connection_error(reason)
+
     state =
       state
-      |> Map.put(:status_message, "Error: #{inspect(reason)}")
+      |> Map.put(:status_message, "Connection error: #{inspect(reason)}")
       |> add_local_line("[Connection error: #{inspect(reason)}]")
+      |> add_local_line("[#{error_msg}]")
 
     {state, []}
   end
@@ -408,6 +414,22 @@ defmodule Mudc.UI.App do
 
   defp add_local_line(state, line) do
     add_game_line(state, line)
+  end
+
+  defp format_connection_error(:econnrefused) do
+    "Make sure MMapper is running on localhost:4242, or use /connect to try again"
+  end
+
+  defp format_connection_error(:nxdomain) do
+    "Host not found. Check your connection settings in ~/.config/mudc/config.toml"
+  end
+
+  defp format_connection_error(:timeout) do
+    "Connection timeout. Check if the server is reachable"
+  end
+
+  defp format_connection_error(_reason) do
+    "Connection failed. Use /connect to try again"
   end
 
   defp render_header(state) do

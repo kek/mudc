@@ -158,6 +158,7 @@ defmodule Mudc.Network.Connection do
 
       {:error, reason} ->
         Logger.warning("Auto-connect failed: #{inspect(reason)}, retrying in 5s")
+        Bus.publish(:connection, {:error, reason})
         Process.send_after(self(), :auto_connect, 5000)
         {:noreply, state}
     end
