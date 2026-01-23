@@ -185,4 +185,4 @@ If you see "DISCONNECTED" and connection errors, make sure:
   etc.
 - This is a generic MUD client, not a MUME client. Change all docs, hints etc
   accordingly.
-
+- Keypad navigation
