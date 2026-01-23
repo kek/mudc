@@ -28,24 +28,7 @@ This guide provides steps to manually test the Ctrl+L screen redraw functionalit
 - All content (header, vitals, game text, input, status) appears correctly
 - No visual artifacts or corruption
 
-### Test 2: Redraw After F9 Toggle
-
-**Purpose**: Verify Ctrl+L fixes display after IEx mode
-
-**Steps**:
-1. Start client and connect to game
-2. Press `F9` to enter IEx mode
-3. Type some IEx commands
-4. Call `Mudc.resume_ui()`
-5. Observe if display looks corrupted
-6. Press `Ctrl+L`
-
-**Expected Result**:
-- Screen clears and redraws
-- Display is clean and properly formatted
-- All UI elements visible and correctly positioned
-
-### Test 3: Redraw While Scrolled
+### Test 2: Redraw While Scrolled
 
 **Purpose**: Verify scroll position is maintained
 
@@ -146,7 +129,7 @@ This guide provides steps to manually test the Ctrl+L screen redraw functionalit
 ### Issue: Partial Redraw
 **Symptom**: Only some UI elements redraw
 **Cause**: State corruption or render tree issues
-**Verification**: Compare with F9 toggle and back
+**Verification**: Check all UI components render correctly
 
 ### Issue: Flicker
 **Symptom**: Screen flickers or shows artifacts briefly
@@ -180,14 +163,13 @@ TermUI.Runtime.force_render(Process.whereis(TermUI.Runtime))
 TermUI.Terminal.get_terminal_size()
 
 # Verify state change on redraw
-# Press F9 to enter IEx mode
+# Start an IEx session with: iex -S mix
 iex> pid = Process.whereis(Mudc.UI.App)
 # If not found, you need to get the runtime's root component PID differently
 
 # Check redraw_count before Ctrl+L
-# Return to game with: Mudc.resume_ui()
 # Press Ctrl+L
-# Press F9 again and check redraw_count - it should have incremented
+# Check state again and redraw_count should have incremented
 ```
 
 ## Performance Testing
@@ -250,7 +232,6 @@ Ctrl+L implementation is considered working correctly if:
 ✅ Works in all UI states (normal, logs open, scrolled)
 ✅ No connection interruption
 ✅ No performance degradation
-✅ Works after F9 toggle
 ✅ No memory leaks with repeated use
 ✅ Compatible with major terminal emulators
 

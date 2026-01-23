@@ -42,7 +42,6 @@ This document provides a quick reference for all keyboard shortcuts available in
 |-----|--------|-------------|
 | `F5` | Recompile | Recompile code without restarting (development feature) |
 | `F8` | Toggle logs | Open/close the log viewer overlay |
-| `F9` | Toggle IEx | Switch between game window and IEx REPL |
 
 ## Display Control
 
@@ -111,23 +110,6 @@ View application logs in an overlay:
 - Press `F8` again to close and return to game view
 - Useful for debugging and viewing error messages
 
-### F9 - Toggle IEx
-
-Switch between game window and IEx REPL:
-
-**Entering IEx mode**:
-1. Press `F9` in game window
-2. Terminal switches to normal mode
-3. IEx prompt becomes available
-4. Game remains connected in background
-
-**Returning to game**:
-```elixir
-Mudc.resume_ui()
-```
-
-See [f9-toggle.md](f9-toggle.md) for detailed documentation.
-
 ### Ctrl+L - Redraw Screen
 
 Force a complete screen refresh:
@@ -138,7 +120,6 @@ Force a complete screen refresh:
 - Useful after display corruption
 
 **When to use**:
-- After returning from IEx mode (F9)
 - Display shows overlapping text
 - Colors appear incorrect
 - Terminal was resized incorrectly
@@ -167,12 +148,9 @@ All other text is sent directly to the MUD server as game commands.
 | `Page Down` | Scroll logs down (not game text) |
 | `F8` | Close log viewer |
 
-### When in IEx Mode (F9 pressed)
 
-| Key | Behavior |
-|-----|----------|
-| All keys | Normal IEx behavior (terminal in normal mode) |
-| `F9` | Not available (call `Mudc.resume_ui()` instead) |
+
+
 
 ### When Command History is Active
 
@@ -201,7 +179,7 @@ The bottom status bar shows helpful hints:
 
 **Default**:
 ```
-Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F5: recompile | F8: logs | F9: IEx
+Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F5: recompile | F8: logs
 ```
 
 **When connected**:
@@ -257,8 +235,8 @@ Some environments may intercept certain keys:
 1. Make code changes in your editor
 2. Press `F5` to recompile without restarting
 3. Press `F8` if compilation fails (check logs)
-5. Press `F9` to debug interactively with IEx
-6. Call `Mudc.resume_ui()` to return
+
+
 
 ### Quick Movement
 
@@ -280,7 +258,6 @@ Some environments may intercept certain keys:
 ║ Function Keys                                              ║
 ║   F5           Recompile code                             ║
 ║   F8           Toggle log viewer                          ║
-║   F9           Toggle IEx REPL                            ║
 ║                                                            ║
 ║ Control                                                    ║
 ║   Enter        Send command                               ║
@@ -296,7 +273,6 @@ Some environments may intercept certain keys:
 
 ## Related Documentation
 
-- [F9 Toggle Feature](f9-toggle.md) - Detailed IEx REPL documentation
 - [README.md](../README.md) - General client documentation
 
 ## Customization

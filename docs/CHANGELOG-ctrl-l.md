@@ -63,17 +63,14 @@ Finished in 0.08 seconds (0.08s async, 0.00s sync)
 Manual testing confirms:
 - ✅ Screen clears and redraws immediately
 - ✅ All UI elements appear correctly
-- ✅ Works after F9 toggle (IEx mode)
+
 - ✅ Preserves all state (input, history, scroll)
 - ✅ No connection interruption
 - ✅ No performance issues
 
 ## Related Features
 
-This fix complements the F9 toggle feature:
-1. Press F9 → Switch to IEx REPL
-2. Call `Mudc.resume_ui()` → Return to game
-3. Press Ctrl+L → Clean up any display corruption
+This feature works alongside other UI features like F5 (recompile) and F8 (log viewer).
 
 ## Files Modified
 

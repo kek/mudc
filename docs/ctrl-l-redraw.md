@@ -12,24 +12,19 @@ Press **Ctrl+L** at any time while in the game window to redraw the screen.
 
 ### Common Scenarios
 
-1. **After returning from IEx mode (F9)**: Sometimes the terminal display can get corrupted when switching between modes
-2. **Display artifacts**: When text overlaps or appears in wrong positions
-3. **Terminal resize issues**: If the window was resized and the display didn't adjust properly
-4. **ANSI color problems**: When colors appear incorrect or stick to wrong text
-5. **General corruption**: Any time the display doesn't look right
+1. **Display artifacts**: When text overlaps or appears in wrong positions
+2. **Terminal resize issues**: If the window was resized and the display didn't adjust properly
+3. **ANSI color problems**: When colors appear incorrect or stick to wrong text
+4. **General corruption**: Any time the display doesn't look right
 
 ### Example Situations
 
 ```
-# Scenario 1: Corrupted display after F9 toggle
-Press F9 → Switch to IEx → Call Mudc.resume_ui() → Display looks wrong
-Solution: Press Ctrl+L
-
-# Scenario 2: Text overlap after receiving a lot of data
+# Scenario 1: Text overlap after receiving a lot of data
 Game sends rapid updates → Text overlaps or wraps incorrectly
 Solution: Press Ctrl+L
 
-# Scenario 3: Terminal was resized
+# Scenario 2: Terminal was resized
 Resize terminal window → UI doesn't adjust properly
 Solution: Press Ctrl+L
 ```
@@ -139,7 +134,6 @@ Some terminals have their own display buffers that can get corrupted independent
 
 ## Related Features
 
-- **F9**: Toggle to IEx REPL (may cause display corruption that Ctrl+L can fix)
 - **F8**: Toggle log viewer (another view that Ctrl+L can refresh)
 - **F5**: Recompile code (may cause brief display flicker that Ctrl+L can clean up)
 
