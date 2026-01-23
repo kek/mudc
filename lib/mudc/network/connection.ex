@@ -60,7 +60,7 @@ defmodule Mudc.Network.Connection do
   @impl true
   def init(opts) do
     # Read from config, with opts overriding config values
-    config_host = Config.get(:connection, :host) || "localhost"
+    config_host = System.get_env("MUD_HOST") || Config.get(:connection, :host) || "localhost"
     config_port = Config.get(:connection, :port) || @default_port
     config_auto_connect = Config.get(:connection, :auto_connect) || false
 
