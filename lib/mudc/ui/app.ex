@@ -57,7 +57,8 @@ defmodule Mudc.UI.App do
       # Game text lines (newest at the end)
       lines: [
         "Welcome to Mudc - MUME Client",
-        "Type /connect to connect, /disconnect to disconnect, /quit to exit"
+        "Type /connect to connect, /disconnect to disconnect, /quit to exit",
+        "Press F5 to recompile code, F8 to view logs"
       ],
       scroll_offset: 0,
       auto_scroll: true,
@@ -71,7 +72,7 @@ defmodule Mudc.UI.App do
 
       # Connection status
       connected: false,
-      status_message: "Commands: /connect, /disconnect, /quit | F8: toggle logs",
+      status_message: "Commands: /connect, /disconnect, /quit | F5: recompile | F8: logs",
 
       # GMCP data
       vitals: %{},
@@ -120,6 +121,11 @@ defmodule Mudc.UI.App do
 
   def event_to_msg(%Event.Key{char: char}, _state) when is_binary(char) and char != "" do
     {:msg, {:char, char}}
+  end
+
+  # F5 recompiles code
+  def event_to_msg(%Event.Key{key: :f5}, _state) do
+    {:msg, :recompile}
   end
 
   # F8 toggles log viewer
@@ -273,6 +279,26 @@ defmodule Mudc.UI.App do
 
   def update(:quit, state) do
     {state, [:quit]}
+  end
+
+  def update(:recompile, state) do
+    state = add_local_line(state, "[Recompiling...]")
+
+    try do
+      case IEx.Helpers.recompile() do
+        {:ok, _} ->
+          add_local_line(state, "[Recompile successful]")
+
+        {:error, _} ->
+          add_local_line(state, "[Recompile failed - check logs with F8]")
+
+        :noop ->
+          add_local_line(state, "[No changes to recompile]")
+      end
+    rescue
+      e ->
+        add_local_line(state, "[Recompile error: #{inspect(e)}]")
+    end
   end
 
   def update(:toggle_logs, state) do

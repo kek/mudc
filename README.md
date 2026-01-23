@@ -38,10 +38,16 @@ When the UI is running, you can use these commands:
 - `/disconnect` - Disconnect from the MUD server
 - `/quit` - Exit the client
 
+### Hotkeys
+
+- `F5` - Recompile code without restarting (for development)
+- `F8` - Toggle log viewer
+- `Page Up/Down` - Scroll game text or logs (when log viewer is open)
+
 ### Connection Status
 
-- The top line shows `[CONNECTED]` in green when connected, or `[DISCONNECTED]` in red when not connected
-- The bottom status bar shows the current connection state and any error messages
+- The bottom status bar shows connection messages and helpful command hints
+- When you successfully connect, you'll see "[Connected to localhost:4242]" in the game output
 
 If you see "DISCONNECTED" and connection errors, make sure:
 1. MMapper is running
