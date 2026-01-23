@@ -46,6 +46,9 @@ defmodule Mix.Tasks.Start do
 
     # Start distributed Erlang if not already running
     unless Node.alive?() do
+      # Ensure EPMD is running as external daemon (required for Erlang distribution)
+      System.cmd("epmd", ["-daemon"])
+
       case :net_kernel.start([String.to_atom(node_name), :shortnames]) do
         {:ok, _pid} ->
           Node.set_cookie(cookie)
