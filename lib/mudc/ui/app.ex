@@ -7,14 +7,15 @@ defmodule Mudc.UI.App do
   - Text input for commands
   - Command history (up/down arrows)
   - Status bar showing connection status
+  - Debug log viewer (F4 - Dog screen)
 
   Controls:
   - Enter: Send command
   - Up/Down: Navigate command history (when input is focused)
   - Ctrl+Arrow: Send directional commands (north/south/west/east)
   - Page Up/Down: Scroll game text
-  - F3: Game screen
-  - F4: Dog screen
+  - F3: Game screen (main view)
+  - F4: Dog screen (debug logs)
   - F5: Cat screen
   - Ctrl+F5: Recompile code
   - Ctrl+C: Quit
@@ -36,18 +37,18 @@ defmodule Mudc.UI.App do
   @reserved_lines 8
 
   @dog_art """
-    / \\__
-   (    @\\___
-   /         O
-  /   (_____/
- /_____/   U
-"""
+      / \\__
+     (    @\\___
+     /         O
+    /   (_____/
+   /_____/   U
+  """
 
   @cat_art """
- /\\_/\\
-( o.o )
- > ^ <
-"""
+   /\\_/\\
+  ( o.o )
+   > ^ <
+  """
 
   # ----------------------------------------------------------------------------
   # Component Callbacks
@@ -58,6 +59,9 @@ defmodule Mudc.UI.App do
     Bus.subscribe(:game_text)
     Bus.subscribe(:connection)
     Bus.subscribe(:state_changed)
+
+    # Subscribe to log updates for dog screen
+    Mudc.UI.LogBuffer.subscribe()
 
     # Get initial terminal dimensions
     {width, height} = get_terminal_size()
@@ -76,7 +80,7 @@ defmodule Mudc.UI.App do
       lines: [
         "Welcome to Mudc - MUME Client",
         "Type /connect to connect, /disconnect to disconnect, /quit to exit",
-        "Press Ctrl+F5 to recompile (F3/F4/F5 switch screens)"
+        "Press F4 for debug logs | Ctrl+F5 to recompile | F3/F4/F5 switch screens"
       ],
       scroll_offset: 0,
       auto_scroll: true,
@@ -91,11 +95,14 @@ defmodule Mudc.UI.App do
       # Connection status
       connected: false,
       status_message:
-        "Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | Ctrl+F5: recompile",
+        "Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F4: debug logs | Ctrl+F5: recompile",
 
       # GMCP data
       vitals: %{},
-      room: %{}
+      room: %{},
+
+      # Debug logs for dog screen
+      log_lines: []
     }
   end
 
@@ -370,6 +377,11 @@ defmodule Mudc.UI.App do
     {%{state | room: room}, []}
   end
 
+  # Handle log buffer updates for dog screen
+  def handle_info({:log_update, lines}, state) do
+    {%{state | log_lines: Enum.reverse(lines)}, []}
+  end
+
   def handle_info(_msg, state) do
     {state, []}
   end
@@ -402,7 +414,7 @@ defmodule Mudc.UI.App do
     stack(:vertical, [
       render_header(state),
       render_screen_tabs(state),
-      render_ascii_art(:dog),
+      render_debug_logs(state),
       text(""),
       render_input(state),
       render_status_bar(state)
@@ -466,6 +478,72 @@ defmodule Mudc.UI.App do
       stack(:vertical, line_elements),
       text(""),
       text("+" <> String.duplicate("-", 40) <> "+", Style.new(fg: :blue))
+    ])
+  end
+
+  defp render_debug_logs(state) do
+    # Calculate how many lines we can show for logs
+    # Reserved: header(1) + tabs(1) + vitals(1) + borders(2) + empty(1) + input(1) + status(1) = 8
+    available_height = state.term_height - @reserved_lines
+
+    # Show dog art at top (takes ~7 lines)
+    dog_lines = String.split(@dog_art, "\n", trim: true)
+    # +4 for borders and spacing
+    dog_height = length(dog_lines) + 4
+
+    # Remaining space for logs
+    log_viewport_height = max(available_height - dog_height, 5)
+
+    # Get the most recent logs that fit
+    visible_logs =
+      state.log_lines
+      |> Enum.take(log_viewport_height)
+
+    # Pad with empty lines if needed
+    visible_logs = visible_logs ++ List.duplicate("", log_viewport_height - length(visible_logs))
+
+    # Render dog art
+    dog_elements =
+      Enum.map(dog_lines, fn line ->
+        text("  " <> line, Style.new(fg: :bright_yellow, attrs: [:bold]))
+      end)
+
+    # Render log lines
+    log_elements =
+      Enum.map(visible_logs, fn line ->
+        # Color code based on log level
+        style =
+          cond do
+            String.contains?(line, "[error]") -> Style.new(fg: :red, attrs: [:bold])
+            String.contains?(line, "[warning]") -> Style.new(fg: :yellow)
+            String.contains?(line, "[info]") -> Style.new(fg: :green)
+            String.contains?(line, "[debug]") -> Style.new(fg: :cyan, attrs: [:dim])
+            true -> Style.new(fg: :white)
+          end
+
+        text(line, style)
+      end)
+
+    stack(:vertical, [
+      text(
+        "+" <> String.duplicate("-", min(state.term_width - 2, 78)) <> "+",
+        Style.new(fg: :blue)
+      ),
+      stack(:vertical, dog_elements),
+      text(
+        "+" <> String.duplicate("-", min(state.term_width - 2, 78)) <> "+",
+        Style.new(fg: :blue)
+      ),
+      text("DEBUG LOGS (most recent first):", Style.new(fg: :cyan, attrs: [:bold])),
+      text(
+        "+" <> String.duplicate("-", min(state.term_width - 2, 78)) <> "+",
+        Style.new(fg: :blue)
+      ),
+      stack(:vertical, log_elements),
+      text(
+        "+" <> String.duplicate("-", min(state.term_width - 2, 78)) <> "+",
+        Style.new(fg: :blue)
+      )
     ])
   end
 
@@ -648,7 +726,7 @@ defmodule Mudc.UI.App do
     base_status =
       case state.current_screen do
         :game -> state.status_message
-        :dog -> "Viewing Dog Screen (F3: return to game)"
+        :dog -> "Debug Logs - Live view | F3: return to game"
         :cat -> "Viewing Cat Screen (F3: return to game)"
       end
 

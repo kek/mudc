@@ -44,9 +44,20 @@ When the UI is running, you can use these commands:
 ### Hotkeys
 
 - `Ctrl+Arrow Keys` - Send directional commands (Ctrl+Up=north, Ctrl+Down=south, Ctrl+Left=west, Ctrl+Right=east)
-- `F5` - Recompile code without restarting (for development)
+- `F3` - Game screen (main view)
+- `F4` - Dog screen (debug logs viewer)
+- `F5` - Cat screen (decorative)
+- `Ctrl+F5` - Recompile code without restarting (for development)
 - `Page Up/Down` - Scroll game text
 - `Ctrl+C` - Quit the client
+
+The **Dog Screen (F4)** displays real-time debug logs with color-coded log levels:
+- Red: Error messages
+- Yellow: Warnings
+- Green: Info messages
+- Cyan: Debug messages
+
+This provides an always-visible debug console without needing to connect via remote REPL.
 
 
 
@@ -171,3 +182,4 @@ If you see "DISCONNECTED" and connection errors, make sure:
   the UI.
 - Split windows with the various filters for chats, messages, highlighted things
   etc.
+- Instead of start.sh and connect.sh, add "mix start" and "mix connect" tasks.

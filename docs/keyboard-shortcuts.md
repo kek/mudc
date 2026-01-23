@@ -40,7 +40,10 @@ This document provides a quick reference for all keyboard shortcuts available in
 
 | Key | Action | Description |
 |-----|--------|-------------|
-| `F5` | Recompile | Recompile code without restarting (development feature) |
+| `F3` | Game screen | Switch to main game view |
+| `F4` | Debug logs | Switch to dog screen with live debug logs |
+| `F5` | Cat screen | Switch to decorative cat screen |
+| `Ctrl+F5` | Recompile | Recompile code without restarting (development feature) |
 
 ## Display Control
 
@@ -68,13 +71,29 @@ View earlier game text:
 - Scrolls through game text buffer (up to 1000 lines)
 - **Auto-scroll**: Automatically returns to bottom when new text arrives (unless manually scrolled)
 
-### F5 - Recompile
+### F3/F4/F5 - Screen Switching
+
+Switch between different views:
+
+- **F3 - Game Screen**: Main MUD game view with scrollable text, vitals, and input
+- **F4 - Dog Screen**: Debug logs viewer with color-coded log levels
+  - Red: Error messages
+  - Yellow: Warnings
+  - Green: Info messages
+  - Cyan: Debug messages
+  - Shows most recent logs in real-time
+  - Useful for debugging without remote REPL
+- **F5 - Cat Screen**: Decorative ASCII art screen
+
+Press `F3` to return to the game view from any screen.
+
+### Ctrl+F5 - Recompile
 
 Hot reload code changes without restarting:
 
 ```elixir
 # Make changes to code files
-# Press F5 in the game window
+# Press Ctrl+F5 in any screen
 # See recompilation status message
 ```
 
@@ -82,6 +101,8 @@ Hot reload code changes without restarting:
 - `[Recompile successful]` - Code updated
 - `[Recompile failed]` - Compilation errors
 - `[No changes to recompile]` - No modified files
+
+**Note**: Changed from F5 to Ctrl+F5 to avoid conflict with screen switching.
 
 ### Ctrl+Arrow Keys - Directional Movement
 
@@ -161,7 +182,7 @@ The bottom status bar shows helpful hints:
 
 **Default**:
 ```
-Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F5: recompile
+Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F4: debug logs | Ctrl+F5: recompile
 ```
 
 **When connected**:
@@ -214,7 +235,8 @@ Some environments may intercept certain keys:
 ### Development Workflow
 
 1. Make code changes in your editor
-2. Press `F5` to recompile without restarting
+2. Press `Ctrl+F5` to recompile without restarting
+3. Press `F4` to view debug logs if needed
 
 
 ### Quick Movement
@@ -235,7 +257,10 @@ Some environments may intercept certain keys:
 ║   Backspace     Delete character                          ║
 ║                                                            ║
 ║ Function Keys                                              ║
-║   F5           Recompile code                             ║
+║   F3           Game screen (main view)                    ║
+║   F4           Dog screen (debug logs)                    ║
+║   F5           Cat screen (decorative)                    ║
+║   Ctrl+F5      Recompile code                             ║
 ║                                                            ║
 ║ Control                                                    ║
 ║   Enter        Send command                               ║
