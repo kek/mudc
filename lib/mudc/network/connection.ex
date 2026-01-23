@@ -14,7 +14,7 @@ defmodule Mudc.Network.Connection do
   alias Mudc.Protocol.Dispatcher
 
   @default_host ~c"localhost"
-  @default_port 4242
+  @default_port 23
 
   defstruct [:socket, :host, :port, :connected]
 
@@ -61,7 +61,7 @@ defmodule Mudc.Network.Connection do
   def init(opts) do
     # Read from config, with opts overriding config values
     config_host = System.get_env("MUD_HOST") || Config.get(:connection, :host) || "localhost"
-    config_port = Config.get(:connection, :port) || @default_port
+    config_port = parse_env_port("MUD_PORT") || Config.get(:connection, :port) || @default_port
     config_auto_connect = Config.get(:connection, :auto_connect) || false
 
     host = Keyword.get(opts, :host, to_charlist(config_host))
@@ -205,6 +205,13 @@ defmodule Mudc.Network.Connection do
   end
 
   # Private Functions
+
+  defp parse_env_port(var) do
+    case System.get_env(var) do
+      nil -> nil
+      str -> String.to_integer(str)
+    end
+  end
 
   defp do_connect(host, port) do
     # Ensure host is a charlist for :gen_tcp
