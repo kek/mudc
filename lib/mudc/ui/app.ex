@@ -95,7 +95,18 @@ defmodule Mudc.UI.App do
     {:msg, {:send_command, state.input_buffer}}
   end
 
-  # Ctrl+Arrow keys for directional movement (must come before history handlers)
+  # Up/Down without Ctrl for history navigation (must come before Ctrl+Arrow handlers)
+  def event_to_msg(%Event.Key{key: :up, modifiers: mods}, %{history: history})
+      when history != [] and mods == [] do
+    {:msg, :history_prev}
+  end
+
+  def event_to_msg(%Event.Key{key: :down, modifiers: mods}, %{history_index: idx})
+      when not is_nil(idx) and mods == [] do
+    {:msg, :history_next}
+  end
+
+  # Ctrl+Arrow keys for directional movement
   def event_to_msg(%Event.Key{key: :up} = event, _state) do
     if Event.has_modifier?(event, :ctrl) do
       {:msg, {:send_command, "north"}}
@@ -126,17 +137,6 @@ defmodule Mudc.UI.App do
     else
       :ignore
     end
-  end
-
-  # Up/Down without Ctrl for history navigation
-  def event_to_msg(%Event.Key{key: :up, modifiers: mods}, %{history: history})
-      when history != [] and mods == [] do
-    {:msg, :history_prev}
-  end
-
-  def event_to_msg(%Event.Key{key: :down, modifiers: mods}, %{history_index: idx})
-      when not is_nil(idx) and mods == [] do
-    {:msg, :history_next}
   end
 
   def event_to_msg(%Event.Key{key: :backspace}, _state) do
