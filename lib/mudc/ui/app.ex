@@ -13,6 +13,10 @@ defmodule Mudc.UI.App do
   - Up/Down: Navigate command history (when input is focused)
   - Ctrl+Arrow: Send directional commands (north/south/west/east)
   - Page Up/Down: Scroll game text
+  - F3: Game screen
+  - F4: Dog screen
+  - F5: Cat screen
+  - Ctrl+F5: Recompile code
   - Ctrl+C: Quit
   """
 
@@ -28,8 +32,22 @@ defmodule Mudc.UI.App do
   alias Mudc.UI.AnsiParser
 
   @max_lines 1000
-  # Reserved lines: header(1) + vitals(1) + top_border(1) + bottom_border(1) + empty(1) + input(1) + status(1) = 7
-  @reserved_lines 7
+  # Reserved lines: header(1) + tabs(1) + vitals(1) + top_border(1) + bottom_border(1) + empty(1) + input(1) + status(1) = 8
+  @reserved_lines 8
+
+  @dog_art """
+    / \\__
+   (    @\\___
+   /         O
+  /   (_____/
+ /_____/   U
+"""
+
+  @cat_art """
+ /\\_/\\
+( o.o )
+ > ^ <
+"""
 
   # ----------------------------------------------------------------------------
   # Component Callbacks
@@ -51,11 +69,14 @@ defmodule Mudc.UI.App do
       term_height: height,
       viewport_height: viewport_height,
 
+      # Screen selection
+      current_screen: :game,
+
       # Game text lines (newest at the end)
       lines: [
         "Welcome to Mudc - MUME Client",
         "Type /connect to connect, /disconnect to disconnect, /quit to exit",
-        "Press F5 to recompile"
+        "Press Ctrl+F5 to recompile (F3/F4/F5 switch screens)"
       ],
       scroll_offset: 0,
       auto_scroll: true,
@@ -70,7 +91,7 @@ defmodule Mudc.UI.App do
       # Connection status
       connected: false,
       status_message:
-        "Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F5: recompile",
+        "Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | Ctrl+F5: recompile",
 
       # GMCP data
       vitals: %{},
@@ -126,8 +147,11 @@ defmodule Mudc.UI.App do
 
   def event_to_msg(%Event.Key{key: "l"}, _state), do: {:msg, {:char, "l"}}
 
-  # Function keys
-  def event_to_msg(%Event.Key{key: :f5}, _state), do: {:msg, :recompile}
+  # Function keys - Screen switching
+  def event_to_msg(%Event.Key{key: :f3}, _state), do: {:msg, {:switch_screen, :game}}
+  def event_to_msg(%Event.Key{key: :f4}, _state), do: {:msg, {:switch_screen, :dog}}
+  def event_to_msg(%Event.Key{key: :f5, modifiers: [:ctrl]}, _state), do: {:msg, :recompile}
+  def event_to_msg(%Event.Key{key: :f5}, _state), do: {:msg, {:switch_screen, :cat}}
 
   # Page Up/Down - scrolling
   def event_to_msg(%Event.Key{key: :page_up}, state),
@@ -281,6 +305,10 @@ defmodule Mudc.UI.App do
     end
   end
 
+  def update({:switch_screen, screen}, state) do
+    {%{state | current_screen: screen}, []}
+  end
+
   def update(_msg, state) do
     {state, []}
   end
@@ -347,17 +375,98 @@ defmodule Mudc.UI.App do
   end
 
   def view(state) do
-    main_view =
-      stack(:vertical, [
-        render_header(state),
-        render_vitals_bar(state),
-        render_viewport(state),
-        text(""),
-        render_input(state),
-        render_status_bar(state)
-      ])
+    case state.current_screen do
+      :game -> render_game_screen(state)
+      :dog -> render_dog_screen(state)
+      :cat -> render_cat_screen(state)
+    end
+  end
 
-    main_view
+  # ----------------------------------------------------------------------------
+  # Screen Renderers
+  # ----------------------------------------------------------------------------
+
+  defp render_game_screen(state) do
+    stack(:vertical, [
+      render_header(state),
+      render_screen_tabs(state),
+      render_vitals_bar(state),
+      render_viewport(state),
+      text(""),
+      render_input(state),
+      render_status_bar(state)
+    ])
+  end
+
+  defp render_dog_screen(state) do
+    stack(:vertical, [
+      render_header(state),
+      render_screen_tabs(state),
+      render_ascii_art(:dog),
+      text(""),
+      render_input(state),
+      render_status_bar(state)
+    ])
+  end
+
+  defp render_cat_screen(state) do
+    stack(:vertical, [
+      render_header(state),
+      render_screen_tabs(state),
+      render_ascii_art(:cat),
+      text(""),
+      render_input(state),
+      render_status_bar(state)
+    ])
+  end
+
+  defp render_screen_tabs(state) do
+    tabs = [
+      {"F3: Game", state.current_screen == :game},
+      {"F4: Dog", state.current_screen == :dog},
+      {"F5: Cat", state.current_screen == :cat}
+    ]
+
+    tab_elements =
+      Enum.map(tabs, fn {label, active} ->
+        style =
+          if active do
+            Style.new(fg: :cyan, attrs: [:bold, :reverse])
+          else
+            Style.new(fg: :white, attrs: [:dim])
+          end
+
+        text("  #{label}  ", style)
+      end)
+
+    stack(:horizontal, [
+      text("[", Style.new(fg: :blue)),
+      stack(:horizontal, tab_elements),
+      text("]", Style.new(fg: :blue))
+    ])
+  end
+
+  defp render_ascii_art(type) do
+    art_text =
+      case type do
+        :dog -> @dog_art
+        :cat -> @cat_art
+      end
+
+    art_lines = String.split(art_text, "\n", trim: true)
+
+    line_elements =
+      Enum.map(art_lines, fn line ->
+        text(line, Style.new(fg: :bright_yellow, attrs: [:bold]))
+      end)
+
+    stack(:vertical, [
+      text("+" <> String.duplicate("-", 40) <> "+", Style.new(fg: :blue)),
+      text(""),
+      stack(:vertical, line_elements),
+      text(""),
+      text("+" <> String.duplicate("-", 40) <> "+", Style.new(fg: :blue))
+    ])
   end
 
   # ----------------------------------------------------------------------------
@@ -536,13 +645,22 @@ defmodule Mudc.UI.App do
   end
 
   defp render_status_bar(state) do
+    base_status =
+      case state.current_screen do
+        :game -> state.status_message
+        :dog -> "Viewing Dog Screen (F3: return to game)"
+        :cat -> "Viewing Cat Screen (F3: return to game)"
+      end
+
     history_info =
       case state.history_index do
         nil -> ""
         idx -> " | History: #{idx + 1}/#{length(state.history)}"
       end
 
-    status = state.status_message <> history_info
+    recompile_hint = " | Ctrl+F5: recompile"
+
+    status = base_status <> history_info <> recompile_hint
     text(status, Style.new(fg: :yellow, attrs: [:dim]))
   end
 
