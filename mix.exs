@@ -22,7 +22,7 @@ defmodule Mudc.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:term_ui, path: "/tmp/term_ui_test"},
+      {:term_ui, github: "pcharbon70/term_ui"},
       {:jason, "~> 1.4"},
       {:toml, "~> 0.7"},
       {:luerl, "~> 1.2"}
