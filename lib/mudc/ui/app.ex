@@ -141,20 +141,23 @@ defmodule Mudc.UI.App do
     {:msg, {:send_command, "east"}}
   end
 
-  # Numpad navigation (for terminals with application keypad mode)
+  # Numpad commands (for terminals with application keypad mode)
   def event_to_msg(%Event.Key{key: :kp_up}, _state), do: {:msg, {:send_command, "north"}}
   def event_to_msg(%Event.Key{key: :kp_down}, _state), do: {:msg, {:send_command, "south"}}
   def event_to_msg(%Event.Key{key: :kp_left}, _state), do: {:msg, {:send_command, "west"}}
   def event_to_msg(%Event.Key{key: :kp_right}, _state), do: {:msg, {:send_command, "east"}}
-  def event_to_msg(%Event.Key{key: :kp_7}, _state), do: {:msg, {:send_command, "northwest"}}
+  def event_to_msg(%Event.Key{key: :kp_7}, _state), do: {:msg, {:send_command, "stand"}}
   def event_to_msg(%Event.Key{key: :kp_8}, _state), do: {:msg, {:send_command, "north"}}
-  def event_to_msg(%Event.Key{key: :kp_9}, _state), do: {:msg, {:send_command, "northeast"}}
+  def event_to_msg(%Event.Key{key: :kp_9}, _state), do: {:msg, {:send_command, "up"}}
   def event_to_msg(%Event.Key{key: :kp_4}, _state), do: {:msg, {:send_command, "west"}}
   def event_to_msg(%Event.Key{key: :kp_5}, _state), do: {:msg, {:send_command, "look"}}
   def event_to_msg(%Event.Key{key: :kp_6}, _state), do: {:msg, {:send_command, "east"}}
-  def event_to_msg(%Event.Key{key: :kp_1}, _state), do: {:msg, {:send_command, "southwest"}}
+  def event_to_msg(%Event.Key{key: :kp_1}, _state), do: {:msg, {:send_command, "rest"}}
   def event_to_msg(%Event.Key{key: :kp_2}, _state), do: {:msg, {:send_command, "south"}}
-  def event_to_msg(%Event.Key{key: :kp_3}, _state), do: {:msg, {:send_command, "southeast"}}
+  def event_to_msg(%Event.Key{key: :kp_3}, _state), do: {:msg, {:send_command, "down"}}
+  def event_to_msg(%Event.Key{key: :kp_plus}, _state), do: {:msg, {:send_command, "score"}}
+  def event_to_msg(%Event.Key{key: :kp_minus}, _state), do: {:msg, {:send_command, "info"}}
+  def event_to_msg(%Event.Key{key: :kp_multiply}, _state), do: {:msg, {:send_command, "x"}}
 
   def event_to_msg(%Event.Key{key: :backspace}, _state), do: {:msg, :backspace}
 
