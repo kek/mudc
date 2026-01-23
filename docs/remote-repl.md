@@ -74,13 +74,131 @@ iex> Process.info(Process.whereis(Mudc.Network.Connection))
 
 ### Log Access
 
-```elixir
-# View recent logs
-iex> Mudc.UI.LogBuffer.get_logs()
+The log buffer captures all application logs and can be accessed via remote shell:
 
-# View specific log levels
-iex> Mudc.UI.LogBuffer.get_logs() |> Enum.filter(&String.contains?(&1, "[error]"))
+```elixir
+# View all logs
+iex> Mudc.UI.LogBuffer.get_logs()
+["10:23:45 [info] Connected to localhost:4242", ...]
+
+# Get recent N logs (default: 20)
+iex> Mudc.UI.LogBuffer.recent(20)
+
+# Filter by log level
+iex> Mudc.UI.LogBuffer.filter_by_level(:error)
+iex> Mudc.UI.LogBuffer.filter_by_level(:warning)
+iex> Mudc.UI.LogBuffer.filter_by_level(:info)
+
+# Convenience functions
+iex> Mudc.UI.LogBuffer.errors()     # Only error logs
+iex> Mudc.UI.LogBuffer.warnings()   # Only warning logs
+
+# Search logs (case-insensitive)
+iex> Mudc.UI.LogBuffer.search("connection")
+iex> Mudc.UI.LogBuffer.search("gmcp")
+
+# Clear log buffer
+iex> Mudc.UI.LogBuffer.clear()
+
+# Using Debug helpers (easier!)
+iex> Mudc.Debug.logs(20)           # Recent 20 logs
+iex> Mudc.Debug.errors()           # Error logs
+iex> Mudc.Debug.warnings()         # Warning logs
+iex> Mudc.Debug.search_logs("tcp") # Search logs
 ```
+
+The log buffer stores up to 500 lines in memory, automatically rotating older entries.
+
+## Debug Helpers
+
+The `Mudc.Debug` module provides convenient shortcuts for common debugging tasks:
+
+### Quick Status Check
+
+```elixir
+# Get overall status
+iex> Mudc.Debug.status()
+=== Mudc Status ===
+Connection: :connected
+Vitals: %{hp: 100, max_hp: 150, ...}
+...
+
+# Health check all components
+iex> Mudc.Debug.health_check()
+=== Health Check ===
+✓ Connection: #PID<0.234.0>
+✓ LogBuffer: #PID<0.123.0>
+...
+```
+
+### Log Access (Simplified)
+
+```elixir
+# Recent logs (default 20)
+iex> Mudc.Debug.logs()
+iex> Mudc.Debug.logs(50)  # Get 50 logs
+
+# Filter by level
+iex> Mudc.Debug.errors()
+iex> Mudc.Debug.warnings()
+
+# Search
+iex> Mudc.Debug.search_logs("connection")
+```
+
+### Memory Analysis
+
+```elixir
+# Overview
+iex> Mudc.Debug.memory()
+=== Memory Usage ===
+Total: 45.7 MB
+Processes: 23.4 MB
+...
+
+# Top consumers
+iex> Mudc.Debug.top_memory(10)
+=== Top 10 Processes by Memory ===
+Mudc.UI.LogBuffer (#PID<...>): 2.3 MB
+...
+
+# Find bottlenecks
+iex> Mudc.Debug.mailbox_sizes()
+=== Process Mailbox Sizes (non-zero) ===
+Mudc.Network.Connection: 5 messages
+```
+
+### Complete Snapshot
+
+```elixir
+# Get everything in one call
+iex> Mudc.Debug.dump()
+============================================================
+MUDC DEBUG DUMP
+============================================================
+=== Mudc Status ===
+...
+=== Health Check ===
+...
+=== Memory Usage ===
+...
+```
+
+### Other Helpers
+
+```elixir
+# Monitor memory over time
+iex> Mudc.Debug.monitor_memory(5)  # Every 5 seconds
+
+# Trace function calls
+iex> Mudc.Debug.trace(Mudc.Network.Connection)
+iex> Mudc.Debug.stop_trace()
+
+# Restart a process
+iex> Mudc.Debug.restart(Mudc.Network.Connection)
+```
+
+See `lib/mudc/debug.ex` for all available functions.
 
 ### Testing Commands
 

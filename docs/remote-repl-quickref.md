@@ -81,13 +81,54 @@ Mudc.State.GameState.dump()
 # Get all logs
 Mudc.UI.LogBuffer.get_logs()
 
-# Get recent logs
-Mudc.UI.LogBuffer.get_logs() |> Enum.take(-20)
+# Get recent logs (default: 20)
+Mudc.UI.LogBuffer.recent(20)
+
+# Get only errors
+Mudc.UI.LogBuffer.errors()
+
+# Get only warnings
+Mudc.UI.LogBuffer.warnings()
 
 # Filter by level
-logs = Mudc.UI.LogBuffer.get_logs()
-Enum.filter(logs, &String.contains?(&1, "[error]"))
-Enum.filter(logs, &String.contains?(&1, "[warning]"))
+Mudc.UI.LogBuffer.filter_by_level(:error)
+Mudc.UI.LogBuffer.filter_by_level(:info)
+
+# Search logs
+Mudc.UI.LogBuffer.search("connection")
+
+# Clear logs
+Mudc.UI.LogBuffer.clear()
+```
+
+### Debug Helpers (Quick Access)
+```elixir
+# Overall status
+Mudc.Debug.status()
+
+# Health check all components
+Mudc.Debug.health_check()
+
+# Recent logs
+Mudc.Debug.logs(20)
+
+# Only errors
+Mudc.Debug.errors()
+
+# Search logs
+Mudc.Debug.search_logs("gmcp")
+
+# Memory usage
+Mudc.Debug.memory()
+
+# Top memory consumers
+Mudc.Debug.top_memory(10)
+
+# Mailbox sizes (find bottlenecks)
+Mudc.Debug.mailbox_sizes()
+
+# Complete dump
+Mudc.Debug.dump()
 ```
 
 ### System Info
@@ -133,6 +174,25 @@ Process.list() |> length()
 # (leaves Mudc running)
 ```
 
+## Quick Debugging Workflow
+
+```elixir
+# 1. Check if everything is running
+Mudc.Debug.health_check()
+
+# 2. Check recent logs for errors
+Mudc.Debug.errors()
+
+# 3. Check memory usage
+Mudc.Debug.memory()
+
+# 4. Get full status
+Mudc.Debug.status()
+
+# 5. If something is wrong, check logs
+Mudc.Debug.search_logs("error")
+```
+
 ## Tips
 
 - Use `h Module.function` for help
@@ -140,6 +200,7 @@ Process.list() |> length()
 - Use `v(n)` to recall previous result (e.g., `v(1)`)
 - Use Tab for autocomplete
 - Changes made in remote shell are temporary unless you recompile
+- Use `Mudc.Debug.dump()` for a complete snapshot
 
 ## Manual Connection
 
@@ -154,5 +215,7 @@ iex --sname debug --cookie mudc_secret_cookie --remsh mudc@$(hostname -s)
 ## See Also
 
 - `docs/remote-repl.md` - Full documentation
+- `docs/remote-repl-examples.md` - Practical examples
 - `README.md` - General usage
 - `docs/keyboard-shortcuts.md` - UI hotkeys
+- `lib/mudc/debug.ex` - Debug helper module source

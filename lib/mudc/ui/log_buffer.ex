@@ -1,7 +1,23 @@
 defmodule Mudc.UI.LogBuffer do
   @moduledoc """
   GenServer that stores log messages in a circular buffer.
-  Used by the UI to display logs in a toggleable window.
+
+  Logs can be accessed programmatically via remote REPL for debugging:
+
+      # In remote shell
+      iex> Mudc.UI.LogBuffer.get_logs()
+      ["10:23:45 [info] Connected to localhost:4242", ...]
+
+      # Get recent logs
+      iex> Mudc.UI.LogBuffer.get_logs() |> Enum.take(20)
+
+      # Filter by level
+      iex> Mudc.UI.LogBuffer.get_logs() |> Enum.filter(&String.contains?(&1, "[error]"))
+
+      # Clear logs
+      iex> Mudc.UI.LogBuffer.clear()
+
+  See `docs/remote-repl.md` for more examples.
   """
 
   use GenServer
@@ -35,6 +51,43 @@ defmodule Mudc.UI.LogBuffer do
   """
   def clear do
     GenServer.cast(__MODULE__, :clear)
+  end
+
+  @doc """
+  Get recent N log lines (default: 20).
+  """
+  def recent(count \\ 20) do
+    get_logs() |> Enum.take(count)
+  end
+
+  @doc """
+  Get logs filtered by level (:debug, :info, :warning, :error).
+  """
+  def filter_by_level(level) do
+    level_str = "[#{level}]"
+    get_logs() |> Enum.filter(&String.contains?(&1, level_str))
+  end
+
+  @doc """
+  Get only error logs.
+  """
+  def errors do
+    filter_by_level(:error)
+  end
+
+  @doc """
+  Get only warning logs.
+  """
+  def warnings do
+    filter_by_level(:warning)
+  end
+
+  @doc """
+  Search logs for a pattern (case-insensitive).
+  """
+  def search(pattern) do
+    pattern_lower = String.downcase(pattern)
+    get_logs() |> Enum.filter(&String.contains?(String.downcase(&1), pattern_lower))
   end
 
   @doc """

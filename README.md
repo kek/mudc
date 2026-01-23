@@ -90,8 +90,25 @@ Mudc.send("look")
 # Inspect application state
 :sys.get_state(Mudc.Network.Connection)
 
-# View logs programmatically
+# View logs programmatically (all logs)
 Mudc.UI.LogBuffer.get_logs()
+
+# Get recent logs (default: 20)
+Mudc.UI.LogBuffer.recent(20)
+
+# Filter by level
+Mudc.UI.LogBuffer.errors()
+Mudc.UI.LogBuffer.warnings()
+
+# Search logs
+Mudc.UI.LogBuffer.search("connection")
+
+# Using debug helpers (easier!)
+Mudc.Debug.status()      # Overall status
+Mudc.Debug.logs(20)      # Recent 20 logs
+Mudc.Debug.errors()      # Error logs only
+Mudc.Debug.health_check() # Check all components
+Mudc.Debug.dump()        # Complete snapshot
 
 # Check which processes are running
 Process.whereis(Mudc.Network.Connection)
