@@ -12,6 +12,15 @@ This document provides a quick reference for all keyboard shortcuts available in
 | `Ctrl+C` | Quit | Exit the client immediately |
 | `Ctrl+Q` | Quit | Alternative quit command |
 
+## Directional Movement
+
+| Key | Action | Description |
+|-----|--------|-------------|
+| `Ctrl+↑` | North | Send "north" command to move north |
+| `Ctrl+↓` | South | Send "south" command to move south |
+| `Ctrl+←` | West | Send "west" command to move west |
+| `Ctrl+→` | East | Send "east" command to move east |
+
 ## Navigation & History
 
 | Key | Action | Description |
@@ -77,6 +86,22 @@ Hot reload code changes without restarting:
 - `[Recompile failed - check logs with F8]` - Compilation errors
 - `[No changes to recompile]` - No modified files
 
+### Ctrl+Arrow Keys - Directional Movement
+
+Quick movement commands for MUD navigation:
+
+- `Ctrl+Up` → Sends "north"
+- `Ctrl+Down` → Sends "south"
+- `Ctrl+Left` → Sends "west"
+- `Ctrl+Right` → Sends "east"
+
+**Benefits**:
+- Faster than typing directional commands
+- Keep hands on home row
+- Combine with other movement commands (e.g., type "open door" then Ctrl+Up to go north)
+
+**Note**: Regular arrow keys (without Ctrl) are used for command history navigation (Up/Down)
+
 ### F8 - Toggle Logs
 
 View application logs in an overlay:
@@ -118,7 +143,7 @@ Force a complete screen refresh:
 - Colors appear incorrect
 - Terminal was resized incorrectly
 
-See [ctrl-l-redraw.md](ctrl-l-redraw.md) for detailed documentation.
+
 
 ## Command-Line Commands
 
@@ -163,7 +188,10 @@ All other text is sent directly to the MUD server as game commands.
 |-------------|--------|-------------|
 | `Ctrl+C` | Quit | Exit application |
 | `Ctrl+Q` | Quit | Alternative quit command |
-| `Ctrl+L` | Redraw | Force screen refresh |
+| `Ctrl+↑` | North | Send "north" command |
+| `Ctrl+↓` | South | Send "south" command |
+| `Ctrl+←` | West | Send "west" command |
+| `Ctrl+→` | East | Send "east" command |
 
 **Note**: Modifier keys (Ctrl, Alt, Shift) are not used for game commands. If you need to send Ctrl+C to the game, use the appropriate game command instead.
 
@@ -173,7 +201,7 @@ The bottom status bar shows helpful hints:
 
 **Default**:
 ```
-Commands: /connect, /disconnect, /quit | F5: recompile | F8: logs | F9: IEx | Ctrl+L: redraw
+Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F5: recompile | F8: logs | F9: IEx
 ```
 
 **When connected**:
@@ -217,27 +245,26 @@ Some environments may intercept certain keys:
 1. Use `↑` to recall recent commands instead of retyping
 2. Modify recalled commands before sending
 3. Build complex command sequences in history
+4. Use Ctrl+Arrow keys for quick directional movement
 
 ### Display Management
 
-1. Press `Ctrl+L` after switching from IEx (F9) for clean display
-2. Use `F8` to check logs when something seems wrong
-3. Use `Page Up` to review game text without losing your place
+1. Use `F8` to check logs when something seems wrong
+2. Use `Page Up` to review game text without losing your place
 
 ### Development Workflow
 
 1. Make code changes in your editor
 2. Press `F5` to recompile without restarting
 3. Press `F8` if compilation fails (check logs)
-4. Press `F9` to debug interactively with IEx
-5. Call `Mudc.resume_ui()` to return
-6. Press `Ctrl+L` if display looks wrong
+5. Press `F9` to debug interactively with IEx
+6. Call `Mudc.resume_ui()` to return
 
-### Recovering from Display Issues
+### Quick Movement
 
-1. First try: `Ctrl+L` (redraw)
-2. If that fails: `F9` → `Mudc.resume_ui()` (mode toggle)
-3. Last resort: `Ctrl+C` (quit) and restart
+1. Use Ctrl+Arrow keys for rapid exploration
+2. Combine with typed commands (e.g., "look" + Ctrl+Up)
+3. Remember: plain arrows are for history, Ctrl+arrows are for movement
 
 ## Quick Reference Card
 
@@ -258,7 +285,7 @@ Some environments may intercept certain keys:
 ║ Control                                                    ║
 ║   Enter        Send command                               ║
 ║   Ctrl+C       Quit                                       ║
-║   Ctrl+L       Redraw screen                              ║
+║   Ctrl+Arrows  Directional movement                      ║
 ║                                                            ║
 ║ Commands                                                   ║
 ║   /connect     Connect to MUD                             ║
@@ -270,7 +297,6 @@ Some environments may intercept certain keys:
 ## Related Documentation
 
 - [F9 Toggle Feature](f9-toggle.md) - Detailed IEx REPL documentation
-- [Ctrl+L Redraw Feature](ctrl-l-redraw.md) - Screen refresh documentation
 - [README.md](../README.md) - General client documentation
 
 ## Customization

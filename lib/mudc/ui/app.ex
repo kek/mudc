@@ -11,6 +11,7 @@ defmodule Mudc.UI.App do
   Controls:
   - Enter: Send command
   - Up/Down: Navigate command history (when input is focused)
+  - Ctrl+Arrow: Send directional commands (north/south/west/east)
   - Page Up/Down: Scroll game text
   - F9: Toggle between game window and IEx REPL
   - Ctrl+C: Quit
@@ -74,7 +75,7 @@ defmodule Mudc.UI.App do
       # Connection status
       connected: false,
       status_message:
-        "Commands: /connect, /disconnect, /quit | F5: recompile | F8: logs | F9: IEx",
+        "Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F5: recompile | F8: logs | F9: IEx",
 
       # GMCP data
       vitals: %{},
@@ -94,6 +95,40 @@ defmodule Mudc.UI.App do
     {:msg, {:send_command, state.input_buffer}}
   end
 
+  # Ctrl+Arrow keys for directional movement (must come before history handlers)
+  def event_to_msg(%Event.Key{key: :up} = event, _state) do
+    if Event.has_modifier?(event, :ctrl) do
+      {:msg, {:send_command, "north"}}
+    else
+      :ignore
+    end
+  end
+
+  def event_to_msg(%Event.Key{key: :down} = event, _state) do
+    if Event.has_modifier?(event, :ctrl) do
+      {:msg, {:send_command, "south"}}
+    else
+      :ignore
+    end
+  end
+
+  def event_to_msg(%Event.Key{key: :left} = event, _state) do
+    if Event.has_modifier?(event, :ctrl) do
+      {:msg, {:send_command, "west"}}
+    else
+      :ignore
+    end
+  end
+
+  def event_to_msg(%Event.Key{key: :right} = event, _state) do
+    if Event.has_modifier?(event, :ctrl) do
+      {:msg, {:send_command, "east"}}
+    else
+      :ignore
+    end
+  end
+
+  # Up/Down without Ctrl for history navigation
   def event_to_msg(%Event.Key{key: :up, modifiers: mods}, %{history: history})
       when history != [] and mods == [] do
     {:msg, :history_prev}

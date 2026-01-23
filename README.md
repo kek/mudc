@@ -40,6 +40,7 @@ When the UI is running, you can use these commands:
 
 ### Hotkeys
 
+- `Ctrl+Arrow Keys` - Send directional commands (Ctrl+Up=north, Ctrl+Down=south, Ctrl+Left=west, Ctrl+Right=east)
 - `F5` - Recompile code without restarting (for development)
 - `F8` - Toggle log viewer
 - `F9` - Toggle between game window and IEx REPL
