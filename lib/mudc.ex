@@ -10,6 +10,9 @@ defmodule Mudc do
       # Or connect manually in iex
       Mudc.connect()
       Mudc.send("look")
+
+      # Toggle to IEx REPL with F9, then resume:
+      Mudc.resume_ui()
   """
 
   alias Mudc.Network.Connection
@@ -52,5 +55,15 @@ defmodule Mudc do
   """
   def status do
     Connection.status()
+  end
+
+  @doc """
+  Resume the UI after switching to IEx mode with F9.
+
+  When you press F9 in the game window, you can drop to the IEx REPL.
+  Call this function to return to the game window.
+  """
+  def resume_ui do
+    App.resume_ui()
   end
 end

@@ -12,6 +12,7 @@ defmodule Mudc.UI.App do
   - Enter: Send command
   - Up/Down: Navigate command history (when input is focused)
   - Page Up/Down: Scroll game text
+  - F9: Toggle between game window and IEx REPL
   - Ctrl+C: Quit
   """
 
@@ -58,7 +59,7 @@ defmodule Mudc.UI.App do
       lines: [
         "Welcome to Mudc - MUME Client",
         "Type /connect to connect, /disconnect to disconnect, /quit to exit",
-        "Press F5 to recompile code, F8 to view logs"
+        "Press F5 to recompile, F8 to view logs, F9 to toggle IEx REPL"
       ],
       scroll_offset: 0,
       auto_scroll: true,
@@ -72,7 +73,8 @@ defmodule Mudc.UI.App do
 
       # Connection status
       connected: false,
-      status_message: "Commands: /connect, /disconnect, /quit | F5: recompile | F8: logs",
+      status_message:
+        "Commands: /connect, /disconnect, /quit | F5: recompile | F8: logs | F9: IEx",
 
       # GMCP data
       vitals: %{},
@@ -81,7 +83,10 @@ defmodule Mudc.UI.App do
       # Log viewer state
       show_logs: false,
       log_lines: [],
-      log_scroll_offset: 0
+      log_scroll_offset: 0,
+
+      # IEx toggle state
+      iex_mode: false
     }
   end
 
@@ -111,6 +116,14 @@ defmodule Mudc.UI.App do
     end
   end
 
+  def event_to_msg(%Event.Key{key: "l"} = event, _state) do
+    if Event.has_modifier?(event, :ctrl) do
+      :ignore
+    else
+      {:msg, {:char, "l"}}
+    end
+  end
+
   def event_to_msg(%Event.Key{key: "q"} = event, _state) do
     if Event.has_modifier?(event, :ctrl) do
       {:msg, :quit}
@@ -131,6 +144,11 @@ defmodule Mudc.UI.App do
   # F8 toggles log viewer
   def event_to_msg(%Event.Key{key: :f8}, _state) do
     {:msg, :toggle_logs}
+  end
+
+  # F9 toggles IEx REPL
+  def event_to_msg(%Event.Key{key: :f9}, _state) do
+    {:msg, :toggle_iex}
   end
 
   # When log viewer is open, Page Up/Down scrolls logs (must come before general page up/down)
@@ -313,6 +331,57 @@ defmodule Mudc.UI.App do
       end
 
     {%{state | show_logs: new_show, log_lines: log_lines, log_scroll_offset: 0}, []}
+  end
+
+  def update(:toggle_iex, state) do
+    new_mode = not state.iex_mode
+
+    if new_mode do
+      # Switching to IEx mode
+      state =
+        add_local_line(state, "[Switching to IEx REPL - Call Mudc.UI.App.resume_ui() to return]")
+
+      # Spawn a task to handle the terminal switch
+      spawn(fn ->
+        # Small delay to let the message render
+        Process.sleep(100)
+
+        # Disable raw mode and restore terminal
+        Terminal.disable_raw_mode()
+
+        # Clear screen and show cursor
+        IO.write([
+          IO.ANSI.clear(),
+          IO.ANSI.cursor(0, 0),
+          "\e[?25h"
+        ])
+
+        IO.puts("\n" <> IO.ANSI.green() <> "=== IEx REPL Mode ===" <> IO.ANSI.reset())
+        IO.puts("You can now use IEx normally.")
+
+        IO.puts(
+          "Call " <>
+            IO.ANSI.cyan() <>
+            "Mudc.UI.App.resume_ui()" <> IO.ANSI.reset() <> " to return to the game window."
+        )
+
+        IO.puts("")
+      end)
+
+      {%{state | iex_mode: new_mode}, []}
+    else
+      # Switching back to game mode
+      Terminal.enable_raw_mode()
+
+      # Force a re-render
+      IO.write([
+        IO.ANSI.clear(),
+        IO.ANSI.cursor(0, 0)
+      ])
+
+      state = add_local_line(state, "[Returned to game window]")
+      {%{state | iex_mode: new_mode}, []}
+    end
   end
 
   def update({:scroll_logs, delta}, state) do
@@ -730,5 +799,41 @@ defmodule Mudc.UI.App do
   """
   def run do
     TermUI.Runtime.run(root: __MODULE__)
+  end
+
+  @doc """
+  Resume the UI after switching to IEx mode with F9.
+
+  This function re-enables raw mode and returns you to the game window.
+  """
+  def resume_ui do
+    # Re-enable raw mode
+    case Terminal.enable_raw_mode() do
+      {:ok, _} ->
+        # Clear screen and hide cursor
+        IO.write([
+          IO.ANSI.clear(),
+          IO.ANSI.cursor(0, 0),
+          "\e[?25l"
+        ])
+
+        # Send a message to the app to update its state
+        case Process.whereis(TermUI.Runtime) do
+          nil ->
+            IO.puts("Error: UI runtime not found")
+            :error
+
+          pid ->
+            # Send toggle message to switch back from IEx mode
+            TermUI.Runtime.send_message(pid, :root, :toggle_iex)
+            IO.puts(IO.ANSI.green() <> "Returning to game window..." <> IO.ANSI.reset())
+            Process.sleep(100)
+            :ok
+        end
+
+      {:error, reason} ->
+        IO.puts("Error re-enabling raw mode: #{inspect(reason)}")
+        :error
+    end
   end
 end
