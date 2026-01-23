@@ -186,3 +186,4 @@ If you see "DISCONNECTED" and connection errors, make sure:
 - This is a generic MUD client, not a MUME client. Change all docs, hints etc
   accordingly.
 - Keypad navigation
+- Fix enter key not doing anything
