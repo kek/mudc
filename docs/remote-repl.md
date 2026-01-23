@@ -8,22 +8,32 @@ Mudc supports remote REPL access via Erlang's distributed node system. This allo
 
 ### 1. Start Mudc with Named Node
 
-```bash
-# Using the helper script (recommended)
-./start.sh
+Mudc automatically generates and manages a secure cookie in `~/.config/mudc/.erlang.cookie`.
+The cookie is created on first run and reused on subsequent runs.
 
-# Or manually
-iex --sname mudc --cookie mudc_secret_cookie -S mix
+```bash
+# Using Mix task (recommended)
+mix start
+
+# Or using script
+./start.sh
 ```
+
+The cookie is:
+- 32 bytes of cryptographically secure random data
+- Stored with 0600 permissions (owner read/write only)
+- Automatically regenerated if corrupted or permissions are wrong
 
 ### 2. Connect from Another Terminal
 
-```bash
-# Using the helper script (recommended)
-./connect.sh
+The cookie is automatically loaded from `~/.config/mudc/.erlang.cookie`.
 
-# Or manually
-iex --sname debug --cookie mudc_secret_cookie --remsh mudc@$(hostname -s)
+```bash
+# Using Mix task (recommended)
+mix connect
+
+# Or using script
+./connect.sh
 ```
 
 ### 3. Inspect and Debug
@@ -231,20 +241,22 @@ You can have multiple remote shells connected simultaneously:
 
 ```bash
 # Terminal 1
-./connect.sh
+mix connect
 
-# Terminal 2 (generates unique node name)
-iex --sname debug2 --cookie mudc_secret_cookie --remsh mudc@$(hostname -s)
+# Terminal 2
+mix connect
 ```
+
+Note: Each `mix connect` automatically generates a unique node name.
 
 ### Custom Node Names
 
 ```bash
 # Start with custom node name
-./start.sh my_mud_client
+mix start my_mud_client
 
 # Connect to custom node
-./connect.sh my_mud_client
+mix connect my_mud_client
 ```
 
 ### Remote Host Connection
@@ -285,17 +297,33 @@ iex --sname mudc --cookie $MUDC_ERLANG_COOKIE -S mix
 
 ### Cookie Security
 
-The Erlang cookie acts as authentication. Anyone with the cookie can:
-- Connect to your node
+Erlang cookies provide full access to the node. Anyone with your cookie can:
 - Execute arbitrary code
 - Access all data
 - Crash the application
 
+**Cookie Management in Mudc:**
+- Automatically generated on first start
+- Stored in `~/.config/mudc/.erlang.cookie`
+- File permissions: 0600 (owner read/write only)
+- 32 bytes of random data (Base64 encoded)
+
+**To regenerate cookie:**
+
+```bash
+# Delete and restart
+rm ~/.config/mudc/.erlang.cookie
+mix start
+
+# Or programmatically
+iex> Mudc.Config.CookieManager.regenerate_cookie()
+```
+
 **Best practices:**
-- Use strong, random cookies in production
-- Store cookies in environment variables, not in code
-- Restrict filesystem permissions on `.erlang.cookie`
-- Use firewalls to restrict EPMD and distribution ports
+- Never commit cookie to version control
+- Don't share cookie file
+- Keep file permissions at 0600
+- Regenerate if compromised
 
 ### Network Security
 
@@ -309,14 +337,16 @@ ssh -L 4369:localhost:4369 -L 9000-9100:localhost:9000-9100 user@remote-host
 
 ### Production Cookie Management
 
-```bash
-# Generate a strong cookie
-openssl rand -base64 32 > .erlang.cookie
-chmod 400 .erlang.cookie
+Mudc automatically manages cookies securely. For additional security in production:
 
-# Use it when starting
-export MUDC_COOKIE=$(cat .erlang.cookie)
-iex --sname mudc --cookie "$MUDC_COOKIE" -S mix
+```bash
+# Verify cookie permissions
+ls -la ~/.config/mudc/.erlang.cookie
+# Should show: -rw------- (0600)
+
+# Regenerate if needed
+rm ~/.config/mudc/.erlang.cookie
+mix start
 ```
 
 ## Troubleshooting
@@ -336,9 +366,22 @@ iex --sname mudc --cookie "$MUDC_COOKIE" -S mix
 **Problem**: Connection fails silently or with authentication error
 
 **Solutions**:
-1. Verify both nodes use same cookie
-2. Check `~/.erlang.cookie` if not specified explicitly
-3. Explicitly set cookie on both nodes
+1. Ensure both nodes use same cookie file: `~/.config/mudc/.erlang.cookie`
+2. Check file permissions: `ls -la ~/.config/mudc/.erlang.cookie` (should be `-rw-------`)
+3. Regenerate cookie: `rm ~/.config/mudc/.erlang.cookie && mix start`
+
+### Cookie Issues
+
+**Problem**: Cannot connect - cookie mismatch
+
+**Solutions**:
+1. Ensure both nodes use same cookie file: `~/.config/mudc/.erlang.cookie`
+2. Check file permissions: `ls -la ~/.config/mudc/.erlang.cookie` (should be `-rw-------`)
+3. Regenerate cookie: `rm ~/.config/mudc/.erlang.cookie && mix start`
+
+**Problem**: Cookie file corrupted
+
+**Solution**: Delete file and restart - it will regenerate automatically
 
 ### Name Resolution
 
@@ -412,8 +455,8 @@ iex> Enum.map(1..100, fn _ -> :timer.tc(fn -> Mudc.send("look") end) end)
 
 ### Development Workflow
 
-1. **Start with remote REPL enabled**: Always use `./start.sh` for development
-2. **Keep a debug terminal open**: Have `./connect.sh` ready in another terminal
+1. **Start with remote REPL enabled**: Always use `mix start` for development
+2. **Keep a debug terminal open**: Have `mix connect` ready in another terminal
 3. **Use observer for visualization**: `iex> :observer.start()`
 4. **Enable debug logging**: Check logs frequently via `LogBuffer.get_logs()`
 

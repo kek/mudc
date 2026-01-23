@@ -38,11 +38,11 @@ mix format
 # Start interactive shell with app loaded
 iex -S mix
 
-# Start with remote REPL support (for debugging)
-./start.sh
+# Start Mudc with remote REPL support (recommended)
+mix start
 
 # Connect to running instance from another terminal
-./connect.sh
+mix connect
 ```
 
 ## Remote REPL Access
@@ -51,11 +51,14 @@ For debugging and inspection, you can connect to a running Mudc instance from a 
 
 ```bash
 # Terminal 1: Start Mudc with named node
-./start.sh
+mix start
 
 # Terminal 2: Connect to the running instance
-./connect.sh
+mix connect
 ```
+
+`mix start` automatically starts distributed Erlang using `:net_kernel.start/1` and configures
+the secure cookie. You can also use `./start.sh` if you prefer the shell script approach.
 
 Once connected, you have full access to the running application:
 
@@ -77,6 +80,27 @@ recompile()
 ```
 
 See `docs/remote-repl.md` for detailed documentation.
+
+## Cookie Management
+
+Erlang distribution cookies are automatically generated and stored in `~/.config/mudc/.erlang.cookie`.
+
+The cookie is:
+- Generated on first `mix start`
+- Secured with 0600 file permissions
+- Reused on subsequent runs
+- 32 bytes of cryptographically secure random data
+
+To regenerate if needed:
+```bash
+rm ~/.config/mudc/.erlang.cookie
+mix start
+```
+
+Or programmatically:
+```elixir
+iex> Mudc.Config.CookieManager.regenerate_cookie()
+```
 
 ## Architecture
 

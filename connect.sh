@@ -15,11 +15,20 @@
 
 NODE_NAME=${1:-mudc}
 HOSTNAME=${2:-$(hostname -s)}
-COOKIE="mudc_secret_cookie"
+COOKIE_FILE="$HOME/.config/mudc/.erlang.cookie"
+
+# Read cookie from file
+if [ ! -f "$COOKIE_FILE" ]; then
+  echo "Error: Cookie file not found at $COOKIE_FILE"
+  echo "Make sure Mudc has been started at least once with 'mix start' or './start.sh'"
+  exit 1
+fi
+
+COOKIE=$(cat "$COOKIE_FILE")
 
 echo "Connecting to remote Mudc REPL..."
 echo "Target node: ${NODE_NAME}@${HOSTNAME}"
-echo "Cookie: ${COOKIE}"
+echo "Cookie: [secure]"
 echo ""
 echo "Note: Press Ctrl+C twice to disconnect (leaves Mudc running)"
 echo ""
