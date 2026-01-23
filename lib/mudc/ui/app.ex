@@ -102,7 +102,9 @@ defmodule Mudc.UI.App do
       room: %{},
 
       # Debug logs for dog screen
-      log_lines: []
+      log_lines: [],
+      dog_scroll_offset: 0,
+      dog_auto_scroll: true
     }
   end
 
@@ -256,20 +258,60 @@ defmodule Mudc.UI.App do
   end
 
   def update({:scroll, delta}, state) do
-    max_scroll = max(0, length(state.lines) - state.viewport_height)
-    new_offset = state.scroll_offset + delta
-    new_offset = max(0, min(max_scroll, new_offset))
-    auto_scroll = new_offset >= max_scroll
-    {%{state | scroll_offset: new_offset, auto_scroll: auto_scroll}, []}
+    case state.current_screen do
+      :game ->
+        max_scroll = max(0, length(state.lines) - state.viewport_height)
+        new_offset = state.scroll_offset + delta
+        new_offset = max(0, min(max_scroll, new_offset))
+        auto_scroll = new_offset >= max_scroll
+        {%{state | scroll_offset: new_offset, auto_scroll: auto_scroll}, []}
+
+      :dog ->
+        # Calculate viewport height for dog logs
+        dog_lines_count = String.split(@dog_art, "\n", trim: true) |> length()
+        dog_height = dog_lines_count + 4
+        log_viewport_height = max(state.term_height - @reserved_lines - dog_height, 5)
+
+        max_scroll = max(0, length(state.log_lines) - log_viewport_height)
+        new_offset = state.dog_scroll_offset + delta
+        new_offset = max(0, min(max_scroll, new_offset))
+        dog_auto_scroll = new_offset >= max_scroll
+        {%{state | dog_scroll_offset: new_offset, dog_auto_scroll: dog_auto_scroll}, []}
+
+      _ ->
+        {state, []}
+    end
   end
 
   def update(:scroll_top, state) do
-    {%{state | scroll_offset: 0, auto_scroll: false}, []}
+    case state.current_screen do
+      :game ->
+        {%{state | scroll_offset: 0, auto_scroll: false}, []}
+
+      :dog ->
+        {%{state | dog_scroll_offset: 0, dog_auto_scroll: false}, []}
+
+      _ ->
+        {state, []}
+    end
   end
 
   def update(:scroll_bottom, state) do
-    max_scroll = max(0, length(state.lines) - state.viewport_height)
-    {%{state | scroll_offset: max_scroll, auto_scroll: true}, []}
+    case state.current_screen do
+      :game ->
+        max_scroll = max(0, length(state.lines) - state.viewport_height)
+        {%{state | scroll_offset: max_scroll, auto_scroll: true}, []}
+
+      :dog ->
+        dog_lines_count = String.split(@dog_art, "\n", trim: true) |> length()
+        dog_height = dog_lines_count + 4
+        log_viewport_height = max(state.term_height - @reserved_lines - dog_height, 5)
+        max_scroll = max(0, length(state.log_lines) - log_viewport_height)
+        {%{state | dog_scroll_offset: max_scroll, dog_auto_scroll: true}, []}
+
+      _ ->
+        {state, []}
+    end
   end
 
   def update({:resize, width, height}, state) do
@@ -279,12 +321,20 @@ defmodule Mudc.UI.App do
     max_scroll = max(0, length(state.lines) - viewport_height)
     scroll_offset = min(state.scroll_offset, max_scroll)
 
+    # Also adjust dog screen scroll offset
+    dog_lines_count = String.split(@dog_art, "\n", trim: true) |> length()
+    dog_height = dog_lines_count + 4
+    log_viewport_height = max(height - @reserved_lines - dog_height, 5)
+    max_dog_scroll = max(0, length(state.log_lines) - log_viewport_height)
+    dog_scroll_offset = min(state.dog_scroll_offset, max_dog_scroll)
+
     {%{
        state
        | term_width: width,
          term_height: height,
          viewport_height: viewport_height,
-         scroll_offset: scroll_offset
+         scroll_offset: scroll_offset,
+         dog_scroll_offset: dog_scroll_offset
      }, []}
   end
 
@@ -379,7 +429,22 @@ defmodule Mudc.UI.App do
 
   # Handle log buffer updates for dog screen
   def handle_info({:log_update, lines}, state) do
-    {%{state | log_lines: Enum.reverse(lines)}, []}
+    log_lines = Enum.reverse(lines)
+
+    # Auto-scroll if enabled
+    dog_scroll_offset =
+      if state.dog_auto_scroll do
+        # Calculate viewport height for dog logs
+        dog_lines_count = String.split(@dog_art, "\n", trim: true) |> length()
+        dog_height = dog_lines_count + 4
+        log_viewport_height = max(state.term_height - @reserved_lines - dog_height, 5)
+
+        max(0, length(log_lines) - log_viewport_height)
+      else
+        state.dog_scroll_offset
+      end
+
+    {%{state | log_lines: log_lines, dog_scroll_offset: dog_scroll_offset}, []}
   end
 
   def handle_info(_msg, state) do
@@ -494,13 +559,24 @@ defmodule Mudc.UI.App do
     # Remaining space for logs
     log_viewport_height = max(available_height - dog_height, 5)
 
-    # Get the most recent logs that fit
+    # Get logs based on scroll offset
     visible_logs =
       state.log_lines
+      |> Enum.drop(state.dog_scroll_offset)
       |> Enum.take(log_viewport_height)
 
     # Pad with empty lines if needed
     visible_logs = visible_logs ++ List.duplicate("", log_viewport_height - length(visible_logs))
+
+    # Build scroll info
+    total_logs = length(state.log_lines)
+
+    scroll_info =
+      if total_logs > 0 do
+        "#{state.dog_scroll_offset + 1}-#{min(state.dog_scroll_offset + log_viewport_height, total_logs)}/#{total_logs}"
+      else
+        "0/0"
+      end
 
     # Render dog art
     dog_elements =
@@ -524,24 +600,30 @@ defmodule Mudc.UI.App do
         text(line, style)
       end)
 
+    # Build log header with scroll info
+    border_width = min(state.term_width - 2, 78)
+    scroll_info_len = String.length(scroll_info)
+    log_header_padding = max(border_width - scroll_info_len - String.length("DEBUG LOGS ") - 3, 0)
+    log_header = "DEBUG LOGS " <> String.duplicate(" ", log_header_padding) <> " " <> scroll_info
+
     stack(:vertical, [
       text(
-        "+" <> String.duplicate("-", min(state.term_width - 2, 78)) <> "+",
+        "+" <> String.duplicate("-", border_width) <> "+",
         Style.new(fg: :blue)
       ),
       stack(:vertical, dog_elements),
       text(
-        "+" <> String.duplicate("-", min(state.term_width - 2, 78)) <> "+",
+        "+" <> String.duplicate("-", border_width) <> "+",
         Style.new(fg: :blue)
       ),
-      text("DEBUG LOGS (most recent first):", Style.new(fg: :cyan, attrs: [:bold])),
+      text(log_header, Style.new(fg: :cyan, attrs: [:bold])),
       text(
-        "+" <> String.duplicate("-", min(state.term_width - 2, 78)) <> "+",
+        "+" <> String.duplicate("-", border_width) <> "+",
         Style.new(fg: :blue)
       ),
       stack(:vertical, log_elements),
       text(
-        "+" <> String.duplicate("-", min(state.term_width - 2, 78)) <> "+",
+        "+" <> String.duplicate("-", border_width) <> "+",
         Style.new(fg: :blue)
       )
     ])
@@ -725,9 +807,17 @@ defmodule Mudc.UI.App do
   defp render_status_bar(state) do
     base_status =
       case state.current_screen do
-        :game -> state.status_message
-        :dog -> "Debug Logs - Live view | F3: return to game"
-        :cat -> "Viewing Cat Screen (F3: return to game)"
+        :game ->
+          state.status_message
+
+        :dog ->
+          scroll_status =
+            if state.dog_auto_scroll, do: "Live", else: "Paused (scroll down to resume)"
+
+          "Debug Logs - #{scroll_status} | F3: return to game"
+
+        :cat ->
+          "Viewing Cat Screen (F3: return to game)"
       end
 
     history_info =
