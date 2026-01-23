@@ -95,123 +95,78 @@ defmodule Mudc.UI.App do
     {:msg, {:send_command, state.input_buffer}}
   end
 
-  # Up/Down without Ctrl for history navigation (must come before Ctrl+Arrow handlers)
-  def event_to_msg(%Event.Key{key: :up, modifiers: mods}, %{history: history})
-      when history != [] and mods == [] do
+  # History navigation (up/down without modifiers)
+  def event_to_msg(%Event.Key{key: :up, modifiers: []}, %{history: history})
+      when history != [] do
     {:msg, :history_prev}
   end
 
-  def event_to_msg(%Event.Key{key: :down, modifiers: mods}, %{history_index: idx})
-      when not is_nil(idx) and mods == [] do
+  def event_to_msg(%Event.Key{key: :down, modifiers: []}, %{history_index: idx})
+      when not is_nil(idx) do
     {:msg, :history_next}
   end
 
-  # Ctrl+Arrow keys for directional movement
-  def event_to_msg(%Event.Key{key: :up} = event, _state) do
-    if Event.has_modifier?(event, :ctrl) do
-      {:msg, {:send_command, "north"}}
-    else
-      :ignore
-    end
+  # Ctrl+Arrow for directional movement
+  def event_to_msg(%Event.Key{key: :up, modifiers: [:ctrl]}, _state) do
+    {:msg, {:send_command, "north"}}
   end
 
-  def event_to_msg(%Event.Key{key: :down} = event, _state) do
-    if Event.has_modifier?(event, :ctrl) do
-      {:msg, {:send_command, "south"}}
-    else
-      :ignore
-    end
+  def event_to_msg(%Event.Key{key: :down, modifiers: [:ctrl]}, _state) do
+    {:msg, {:send_command, "south"}}
   end
 
-  def event_to_msg(%Event.Key{key: :left} = event, _state) do
-    if Event.has_modifier?(event, :ctrl) do
-      {:msg, {:send_command, "west"}}
-    else
-      :ignore
-    end
+  def event_to_msg(%Event.Key{key: :left, modifiers: [:ctrl]}, _state) do
+    {:msg, {:send_command, "west"}}
   end
 
-  def event_to_msg(%Event.Key{key: :right} = event, _state) do
-    if Event.has_modifier?(event, :ctrl) do
-      {:msg, {:send_command, "east"}}
-    else
-      :ignore
-    end
+  def event_to_msg(%Event.Key{key: :right, modifiers: [:ctrl]}, _state) do
+    {:msg, {:send_command, "east"}}
   end
 
-  def event_to_msg(%Event.Key{key: :backspace}, _state) do
-    {:msg, :backspace}
+  def event_to_msg(%Event.Key{key: :backspace}, _state), do: {:msg, :backspace}
+
+  # Ctrl+C and Ctrl+Q quit
+  def event_to_msg(%Event.Key{key: key, modifiers: [:ctrl]}, _state) when key in ["c", "q"] do
+    {:msg, :quit}
   end
 
-  def event_to_msg(%Event.Key{key: "c"} = event, _state) do
-    if Event.has_modifier?(event, :ctrl) do
-      {:msg, :quit}
-    else
-      {:msg, {:char, "c"}}
-    end
+  def event_to_msg(%Event.Key{key: key}, _state) when key in ["c", "q"] do
+    {:msg, {:char, key}}
   end
 
-  def event_to_msg(%Event.Key{key: "l"} = event, _state) do
-    if Event.has_modifier?(event, :ctrl) do
-      :ignore
-    else
-      {:msg, {:char, "l"}}
-    end
-  end
+  # Ctrl+L is ignored (terminal clear)
+  def event_to_msg(%Event.Key{key: "l", modifiers: [:ctrl]}, _state), do: :ignore
 
-  def event_to_msg(%Event.Key{key: "q"} = event, _state) do
-    if Event.has_modifier?(event, :ctrl) do
-      {:msg, :quit}
-    else
-      {:msg, {:char, "q"}}
-    end
-  end
+  def event_to_msg(%Event.Key{key: "l"}, _state), do: {:msg, {:char, "l"}}
 
+  # Function keys
+  def event_to_msg(%Event.Key{key: :f5}, _state), do: {:msg, :recompile}
+  def event_to_msg(%Event.Key{key: :f8}, _state), do: {:msg, :toggle_logs}
+  def event_to_msg(%Event.Key{key: :f9}, _state), do: {:msg, :toggle_iex}
+
+  # Page Up/Down - log scrolling when logs are open, game text otherwise
+  def event_to_msg(%Event.Key{key: :page_up}, %{show_logs: true}), do: {:msg, {:scroll_logs, -10}}
+
+  def event_to_msg(%Event.Key{key: :page_down}, %{show_logs: true}),
+    do: {:msg, {:scroll_logs, 10}}
+
+  def event_to_msg(%Event.Key{key: :page_up}, state),
+    do: {:msg, {:scroll, -state.viewport_height}}
+
+  def event_to_msg(%Event.Key{key: :page_down}, state),
+    do: {:msg, {:scroll, state.viewport_height}}
+
+  # Regular character input
   def event_to_msg(%Event.Key{char: char}, _state) when is_binary(char) and char != "" do
     {:msg, {:char, char}}
   end
 
-  # F5 recompiles code
-  def event_to_msg(%Event.Key{key: :f5}, _state) do
-    {:msg, :recompile}
-  end
-
-  # F8 toggles log viewer
-  def event_to_msg(%Event.Key{key: :f8}, _state) do
-    {:msg, :toggle_logs}
-  end
-
-  # F9 toggles IEx REPL
-  def event_to_msg(%Event.Key{key: :f9}, _state) do
-    {:msg, :toggle_iex}
-  end
-
-  # When log viewer is open, Page Up/Down scrolls logs (must come before general page up/down)
-  def event_to_msg(%Event.Key{key: :page_up}, %{show_logs: true}) do
-    {:msg, {:scroll_logs, -10}}
-  end
-
-  def event_to_msg(%Event.Key{key: :page_down}, %{show_logs: true}) do
-    {:msg, {:scroll_logs, 10}}
-  end
-
-  # General page up/down for game text scrolling (when logs are not shown)
-  def event_to_msg(%Event.Key{key: :page_up}, state) do
-    {:msg, {:scroll, -state.viewport_height}}
-  end
-
-  def event_to_msg(%Event.Key{key: :page_down}, state) do
-    {:msg, {:scroll, state.viewport_height}}
-  end
-
-  # Handle terminal resize
+  # Terminal resize
   def event_to_msg(%Event.Resize{width: width, height: height}, _state) do
     {:msg, {:resize, width, height}}
   end
 
-  def event_to_msg(_event, _state) do
-    :ignore
-  end
+  def event_to_msg(_event, _state), do: :ignore
 
   def update({:send_command, ""}, state) do
     {state, []}
