@@ -176,10 +176,13 @@ If you see "DISCONNECTED" and connection errors, make sure:
 - Resize window
 - More powerful support for editing the line
 - Nicer drawing characters
-- Hotkeys
+- Hotkeys remapping
+- Triggers, macros and scripting
 - Being able to hot reload the code of the app in order to not have to restart
   (the app acting a little like IEx). Also being able to run arbitrary code from
   the UI.
 - Split windows with the various filters for chats, messages, highlighted things
   etc.
-- Instead of start.sh and connect.sh, add "mix start" and "mix connect" tasks.
+- This is a generic MUD client, not a MUME client. Change all docs, hints etc
+  accordingly.
+
