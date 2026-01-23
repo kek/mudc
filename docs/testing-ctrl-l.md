@@ -42,22 +42,7 @@ This guide provides steps to manually test the Ctrl+L screen redraw functionalit
 - Scroll position is maintained (not auto-scrolled to bottom)
 - Scrolled content is visible and correct
 
-### Test 4: Redraw with Log Viewer Open
-
-**Purpose**: Verify redraw works with overlays
-
-**Steps**:
-1. Start client
-2. Press `F8` to open log viewer
-3. Press `Ctrl+L`
-
-**Expected Result**:
-- Screen clears and redraws
-- Log viewer overlay reappears correctly
-- Logs are visible and properly formatted
-- Border and header intact
-
-### Test 5: Multiple Rapid Redraws
+### Test 4: Multiple Rapid Redraws
 
 **Purpose**: Verify stability with repeated use
 
@@ -124,7 +109,7 @@ This guide provides steps to manually test the Ctrl+L screen redraw functionalit
 ### Issue: Clear Without Redraw
 **Symptom**: Screen clears but stays blank
 **Cause**: `force_render` not called or Runtime not found
-**Verification**: Check logs with F8
+**Verification**: Check application logs
 
 ### Issue: Partial Redraw
 **Symptom**: Only some UI elements redraw
@@ -152,8 +137,7 @@ Process.whereis(TermUI.Runtime)
 # Check app state
 :sys.get_state(TermUI.Runtime)
 
-# View logs
-# Press F8 or:
+# View logs programmatically:
 Mudc.UI.LogBuffer.get_logs()
 
 # Force manual redraw
@@ -241,7 +225,7 @@ If you find bugs during testing:
 
 1. Note the terminal emulator and version
 2. Record exact steps to reproduce
-3. Check logs with F8
+3. Check application logs
 4. Capture screenshot if visual issue
 5. Note any error messages
 6. Test if issue persists after restart

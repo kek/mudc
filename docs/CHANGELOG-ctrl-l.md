@@ -63,14 +63,13 @@ Finished in 0.08 seconds (0.08s async, 0.00s sync)
 Manual testing confirms:
 - ✅ Screen clears and redraws immediately
 - ✅ All UI elements appear correctly
-
 - ✅ Preserves all state (input, history, scroll)
 - ✅ No connection interruption
 - ✅ No performance issues
 
 ## Related Features
 
-This feature works alongside other UI features like F5 (recompile) and F8 (log viewer).
+This feature works alongside other UI features like F5 (recompile).
 
 ## Files Modified
 

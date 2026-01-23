@@ -33,15 +33,14 @@ This document provides a quick reference for all keyboard shortcuts available in
 
 | Key | Action | Description |
 |-----|--------|-------------|
-| `Page Up` | Scroll up | Scroll game text upward (or logs when log viewer is open) |
-| `Page Down` | Scroll down | Scroll game text downward (or logs when log viewer is open) |
+| `Page Up` | Scroll up | Scroll game text upward |
+| `Page Down` | Scroll down | Scroll game text downward |
 
 ## Function Keys
 
 | Key | Action | Description |
 |-----|--------|-------------|
 | `F5` | Recompile | Recompile code without restarting (development feature) |
-| `F8` | Toggle logs | Open/close the log viewer overlay |
 
 ## Display Control
 
@@ -64,10 +63,9 @@ Navigate through previously entered commands:
 
 ### Scrolling (Page Up/Down)
 
-View earlier game text or logs:
+View earlier game text:
 
-- **In game view**: Scrolls through game text buffer (up to 1000 lines)
-- **In log view (F8)**: Scrolls through application logs instead
+- Scrolls through game text buffer (up to 1000 lines)
 - **Auto-scroll**: Automatically returns to bottom when new text arrives (unless manually scrolled)
 
 ### F5 - Recompile
@@ -82,7 +80,7 @@ Hot reload code changes without restarting:
 
 **Results**:
 - `[Recompile successful]` - Code updated
-- `[Recompile failed - check logs with F8]` - Compilation errors
+- `[Recompile failed]` - Compilation errors
 - `[No changes to recompile]` - No modified files
 
 ### Ctrl+Arrow Keys - Directional Movement
@@ -100,15 +98,6 @@ Quick movement commands for MUD navigation:
 - Combine with other movement commands (e.g., type "open door" then Ctrl+Up to go north)
 
 **Note**: Regular arrow keys (without Ctrl) are used for command history navigation (Up/Down)
-
-### F8 - Toggle Logs
-
-View application logs in an overlay:
-
-- Opens a popup showing recent log messages
-- Use `Page Up`/`Page Down` to scroll logs
-- Press `F8` again to close and return to game view
-- Useful for debugging and viewing error messages
 
 ### Ctrl+L - Redraw Screen
 
@@ -140,13 +129,6 @@ All other text is sent directly to the MUD server as game commands.
 
 ## Context-Specific Behavior
 
-### When Log Viewer is Open (F8 pressed)
-
-| Key | Behavior |
-|-----|----------|
-| `Page Up` | Scroll logs up (not game text) |
-| `Page Down` | Scroll logs down (not game text) |
-| `F8` | Close log viewer |
 
 
 
@@ -179,7 +161,7 @@ The bottom status bar shows helpful hints:
 
 **Default**:
 ```
-Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F5: recompile | F8: logs
+Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F5: recompile
 ```
 
 **When connected**:
@@ -227,15 +209,12 @@ Some environments may intercept certain keys:
 
 ### Display Management
 
-1. Use `F8` to check logs when something seems wrong
-2. Use `Page Up` to review game text without losing your place
+1. Use `Page Up` to review game text without losing your place
 
 ### Development Workflow
 
 1. Make code changes in your editor
 2. Press `F5` to recompile without restarting
-3. Press `F8` if compilation fails (check logs)
-
 
 
 ### Quick Movement
@@ -257,7 +236,6 @@ Some environments may intercept certain keys:
 ║                                                            ║
 ║ Function Keys                                              ║
 ║   F5           Recompile code                             ║
-║   F8           Toggle log viewer                          ║
 ║                                                            ║
 ║ Control                                                    ║
 ║   Enter        Send command                               ║

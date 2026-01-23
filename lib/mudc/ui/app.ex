@@ -41,9 +41,6 @@ defmodule Mudc.UI.App do
     Bus.subscribe(:connection)
     Bus.subscribe(:state_changed)
 
-    # Subscribe to log updates
-    Mudc.UI.LogBuffer.subscribe()
-
     # Get initial terminal dimensions
     {width, height} = get_terminal_size()
     viewport_height = calculate_viewport_height(height)
@@ -53,13 +50,12 @@ defmodule Mudc.UI.App do
       term_width: width,
       term_height: height,
       viewport_height: viewport_height,
-      log_viewport_height: div(viewport_height, 2),
 
       # Game text lines (newest at the end)
       lines: [
         "Welcome to Mudc - MUME Client",
         "Type /connect to connect, /disconnect to disconnect, /quit to exit",
-        "Press F5 to recompile, F8 to view logs"
+        "Press F5 to recompile"
       ],
       scroll_offset: 0,
       auto_scroll: true,
@@ -74,16 +70,11 @@ defmodule Mudc.UI.App do
       # Connection status
       connected: false,
       status_message:
-        "Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F5: recompile | F8: logs",
+        "Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F5: recompile",
 
       # GMCP data
       vitals: %{},
-      room: %{},
-
-      # Log viewer state
-      show_logs: false,
-      log_lines: [],
-      log_scroll_offset: 0
+      room: %{}
     }
   end
 
@@ -137,14 +128,8 @@ defmodule Mudc.UI.App do
 
   # Function keys
   def event_to_msg(%Event.Key{key: :f5}, _state), do: {:msg, :recompile}
-  def event_to_msg(%Event.Key{key: :f8}, _state), do: {:msg, :toggle_logs}
 
-  # Page Up/Down - log scrolling when logs are open, game text otherwise
-  def event_to_msg(%Event.Key{key: :page_up}, %{show_logs: true}), do: {:msg, {:scroll_logs, -10}}
-
-  def event_to_msg(%Event.Key{key: :page_down}, %{show_logs: true}),
-    do: {:msg, {:scroll_logs, 10}}
-
+  # Page Up/Down - scrolling
   def event_to_msg(%Event.Key{key: :page_up}, state),
     do: {:msg, {:scroll, -state.viewport_height}}
 
@@ -258,25 +243,17 @@ defmodule Mudc.UI.App do
 
   def update({:resize, width, height}, state) do
     viewport_height = calculate_viewport_height(height)
-    log_viewport_height = div(viewport_height, 2)
 
     # Adjust scroll offsets if needed
     max_scroll = max(0, length(state.lines) - viewport_height)
     scroll_offset = min(state.scroll_offset, max_scroll)
-
-    # Calculate actual popup viewport height
-    actual_log_viewport_height = calculate_log_popup_viewport_height(height)
-    max_log_scroll = max(0, length(state.log_lines) - actual_log_viewport_height)
-    log_scroll_offset = min(state.log_scroll_offset, max_log_scroll)
 
     {%{
        state
        | term_width: width,
          term_height: height,
          viewport_height: viewport_height,
-         log_viewport_height: log_viewport_height,
-         scroll_offset: scroll_offset,
-         log_scroll_offset: log_scroll_offset
+         scroll_offset: scroll_offset
      }, []}
   end
 
@@ -293,7 +270,7 @@ defmodule Mudc.UI.App do
           add_local_line(state, "[Recompile successful]")
 
         {:error, _} ->
-          add_local_line(state, "[Recompile failed - check logs with F8]")
+          add_local_line(state, "[Recompile failed]")
 
         :noop ->
           add_local_line(state, "[No changes to recompile]")
@@ -302,30 +279,6 @@ defmodule Mudc.UI.App do
       e ->
         add_local_line(state, "[Recompile error: #{inspect(e)}]")
     end
-  end
-
-  def update(:toggle_logs, state) do
-    new_show = not state.show_logs
-
-    # Load current logs when showing
-    log_lines =
-      if new_show do
-        Mudc.UI.LogBuffer.get_logs()
-      else
-        state.log_lines
-      end
-
-    {%{state | show_logs: new_show, log_lines: log_lines, log_scroll_offset: 0}, []}
-  end
-
-  def update({:scroll_logs, delta}, state) do
-    # Calculate actual popup viewport height
-    actual_log_viewport_height = calculate_log_popup_viewport_height(state.term_height)
-
-    max_scroll = max(0, length(state.log_lines) - actual_log_viewport_height)
-    new_offset = state.log_scroll_offset + delta
-    new_offset = max(0, min(max_scroll, new_offset))
-    {%{state | log_scroll_offset: new_offset}, []}
   end
 
   def update(_msg, state) do
@@ -389,16 +342,6 @@ defmodule Mudc.UI.App do
     {%{state | room: room}, []}
   end
 
-  # Handle log buffer updates
-  def handle_info({:log_update, lines}, state) do
-    # Only update if log viewer is visible
-    if state.show_logs do
-      {%{state | log_lines: Enum.reverse(lines)}, []}
-    else
-      {state, []}
-    end
-  end
-
   def handle_info(_msg, state) do
     {state, []}
   end
@@ -414,12 +357,7 @@ defmodule Mudc.UI.App do
         render_status_bar(state)
       ])
 
-    if state.show_logs do
-      # Render log popup as overlay - completely replace the view
-      render_log_popup_overlay(state)
-    else
-      main_view
-    end
+    main_view
   end
 
   # ----------------------------------------------------------------------------
@@ -608,106 +546,9 @@ defmodule Mudc.UI.App do
     text(status, Style.new(fg: :yellow, attrs: [:dim]))
   end
 
-  defp render_log_popup_overlay(state) do
-    header_style = Style.new(fg: :yellow, bg: :black, attrs: [:bold])
-    border_style = Style.new(fg: :yellow, bg: :black, attrs: [:bold])
-    content_style = Style.new(fg: :white, bg: :black)
-
-    # Calculate popup dimensions - use 80% of terminal size, min 40 cols x 15 rows
-    popup_width = max(div(state.term_width * 4, 5), 40)
-    popup_height = max(div(state.term_height * 4, 5), 15)
-    # Subtract borders and header (4 lines)
-    log_viewport_height = calculate_log_popup_viewport_height(state.term_height)
-
-    # Calculate centering margins
-    left_margin = max(div(state.term_width - popup_width, 2), 0)
-    top_margin = max(div(state.term_height - popup_height, 2), 0)
-
-    visible_lines =
-      state.log_lines
-      |> Enum.drop(state.log_scroll_offset)
-      |> Enum.take(log_viewport_height)
-
-    # Pad with empty lines if needed
-    visible_lines =
-      visible_lines ++ List.duplicate("", log_viewport_height - length(visible_lines))
-
-    total_logs = length(state.log_lines)
-
-    scroll_info =
-      if total_logs > 0 do
-        first = state.log_scroll_offset + 1
-        last = min(state.log_scroll_offset + log_viewport_height, total_logs)
-        " #{first}-#{last}/#{total_logs} "
-      else
-        " 0/0 "
-      end
-
-    # Build centered popup
-    inner_width = popup_width - 4
-    header_text = " LOGS - Press F8 to close, PgUp/PgDn to scroll "
-    header_padding = max(inner_width - String.length(header_text) - String.length(scroll_info), 0)
-
-    top_border = "╔" <> String.duplicate("═", popup_width - 2) <> "╗"
-
-    header_line =
-      "║ " <> header_text <> String.duplicate(" ", header_padding) <> scroll_info <> "║"
-
-    separator = "╠" <> String.duplicate("═", popup_width - 2) <> "╣"
-    bottom_border = "╚" <> String.duplicate("═", popup_width - 2) <> "╝"
-
-    # Create empty background lines to fill screen
-    empty_line = String.duplicate(" ", state.term_width)
-    background_style = Style.new(fg: :black, bg: :black, attrs: [:dim])
-
-    # Top padding before popup
-    top_padding = List.duplicate(text(empty_line, background_style), top_margin)
-
-    # Bottom padding after popup
-    bottom_padding_count = max(state.term_height - popup_height - top_margin, 0)
-    bottom_padding = List.duplicate(text(empty_line, background_style), bottom_padding_count)
-
-    # Render log content lines with margins
-    margin = String.duplicate(" ", left_margin)
-    right_margin_size = max(state.term_width - popup_width - left_margin, 0)
-    right_margin = String.duplicate(" ", right_margin_size)
-
-    content_lines =
-      Enum.map(visible_lines, fn line ->
-        # Truncate and pad line to fit popup width
-        truncated = String.slice(line, 0, inner_width)
-        padded = String.pad_trailing(truncated, inner_width)
-        padded_line = "║ " <> padded <> " ║"
-        text(margin <> padded_line <> right_margin, content_style)
-      end)
-
-    # Build full screen with popup centered
-    stack(
-      :vertical,
-      top_padding ++
-        [
-          text(margin <> top_border <> right_margin, border_style),
-          text(margin <> header_line <> right_margin, header_style),
-          text(margin <> separator <> right_margin, border_style)
-        ] ++
-        content_lines ++
-        [
-          text(margin <> bottom_border <> right_margin, border_style)
-        ] ++
-        bottom_padding
-    )
-  end
-
   # ----------------------------------------------------------------------------
   # Terminal Size Helpers
   # ----------------------------------------------------------------------------
-
-  defp calculate_log_popup_viewport_height(term_height) do
-    # Calculate popup dimensions - use 80% of terminal size, min 15 rows
-    popup_height = max(div(term_height * 4, 5), 15)
-    # Subtract borders and header (4 lines: top border, header, separator, bottom border)
-    max(popup_height - 4, 5)
-  end
 
   defp get_terminal_size do
     case Terminal.get_terminal_size() do
@@ -727,9 +568,6 @@ defmodule Mudc.UI.App do
 
   @doc """
   Run the MUD client UI.
-
-  Logs are captured by our custom LogHandler and can be viewed
-  by pressing F8 to toggle the log window.
   """
   def run do
     TermUI.Runtime.run(root: __MODULE__)

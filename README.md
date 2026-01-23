@@ -42,9 +42,7 @@ When the UI is running, you can use these commands:
 
 - `Ctrl+Arrow Keys` - Send directional commands (Ctrl+Up=north, Ctrl+Down=south, Ctrl+Left=west, Ctrl+Right=east)
 - `F5` - Recompile code without restarting (for development)
-- `F8` - Toggle log viewer
-
-- `Page Up/Down` - Scroll game text or logs (when log viewer is open)
+- `Page Up/Down` - Scroll game text
 - `Ctrl+C` - Quit the client
 
 

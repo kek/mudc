@@ -3,7 +3,7 @@ defmodule Mudc.UI.LogHandler do
   Custom :logger handler that forwards log messages to the LogBuffer.
 
   This handler captures all log messages and stores them in a buffer
-  that can be displayed in the UI via the F8 toggle.
+  that can be accessed programmatically for debugging purposes.
   """
 
   @doc """

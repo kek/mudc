@@ -134,7 +134,6 @@ Some terminals have their own display buffers that can get corrupted independent
 
 ## Related Features
 
-- **F8**: Toggle log viewer (another view that Ctrl+L can refresh)
 - **F5**: Recompile code (may cause brief display flicker that Ctrl+L can clean up)
 
 ## Terminal Emulator Compatibility
@@ -175,7 +174,7 @@ If your terminal or multiplexer intercepts Ctrl+L, you can:
 ❌ **Unnecessary use cases:**
 - Normal operation (UI auto-refreshes)
 - After every command
-- As a diagnostic tool (use F8 logs instead)
+- As a diagnostic tool
 
 ### Performance
 
