@@ -71,7 +71,7 @@ defmodule Mudc.UI.App do
 
       # Connection status
       connected: false,
-      status_message: "Connecting...",
+      status_message: "Commands: /connect, /disconnect, /quit | F8: toggle logs",
 
       # GMCP data
       vitals: %{},
@@ -324,7 +324,7 @@ defmodule Mudc.UI.App do
     state =
       state
       |> Map.put(:connected, true)
-      |> Map.put(:status_message, "Connected to #{host}:#{port}")
+      |> Map.put(:status_message, "Connected to #{host}:#{port} | Commands: /disconnect, /quit")
       |> add_local_line("[Connected to #{host}:#{port}]")
 
     {state, []}
@@ -334,7 +334,7 @@ defmodule Mudc.UI.App do
     state =
       state
       |> Map.put(:connected, false)
-      |> Map.put(:status_message, "Disconnected")
+      |> Map.put(:status_message, "Disconnected | Use /connect to reconnect")
       |> add_local_line("[Disconnected]")
 
     {state, []}
@@ -345,7 +345,7 @@ defmodule Mudc.UI.App do
 
     state =
       state
-      |> Map.put(:status_message, "Connection error: #{inspect(reason)}")
+      |> Map.put(:status_message, "Connection failed: #{error_msg}")
       |> add_local_line("[Connection error: #{inspect(reason)}]")
       |> add_local_line("[#{error_msg}]")
 
@@ -432,20 +432,9 @@ defmodule Mudc.UI.App do
     "Connection failed. Use /connect to try again"
   end
 
-  defp render_header(state) do
+  defp render_header(_state) do
     title = "Mudc - MUME Client"
-
-    connection_indicator =
-      if state.connected do
-        text(" [CONNECTED]", Style.new(fg: :green, attrs: [:bold]))
-      else
-        text(" [DISCONNECTED]", Style.new(fg: :red, attrs: [:bold]))
-      end
-
-    stack(:horizontal, [
-      text(title, Style.new(fg: :cyan, attrs: [:bold])),
-      connection_indicator
-    ])
+    text(title, Style.new(fg: :cyan, attrs: [:bold]))
   end
 
   defp render_vitals_bar(state) do
