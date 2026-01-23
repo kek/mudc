@@ -11,8 +11,9 @@ defmodule Mudc.UI.App do
 
   Controls:
   - Enter: Send command
-  - Up/Down: Navigate command history (when input is focused)
+  - Up/Down: Navigate command history
   - Ctrl+Arrow: Send directional commands (north/south/west/east)
+  - Numpad: Send directional commands (8=n, 2=s, 4=w, 6=e, 7=nw, 9=ne, 1=sw, 3=se, 5=look)
   - Page Up/Down: Scroll game text
   - F3: Game screen (main view)
   - F4: Dog screen (debug logs)
@@ -139,6 +140,21 @@ defmodule Mudc.UI.App do
   def event_to_msg(%Event.Key{key: :right, modifiers: [:ctrl]}, _state) do
     {:msg, {:send_command, "east"}}
   end
+
+  # Numpad navigation (for terminals with application keypad mode)
+  def event_to_msg(%Event.Key{key: :kp_up}, _state), do: {:msg, {:send_command, "north"}}
+  def event_to_msg(%Event.Key{key: :kp_down}, _state), do: {:msg, {:send_command, "south"}}
+  def event_to_msg(%Event.Key{key: :kp_left}, _state), do: {:msg, {:send_command, "west"}}
+  def event_to_msg(%Event.Key{key: :kp_right}, _state), do: {:msg, {:send_command, "east"}}
+  def event_to_msg(%Event.Key{key: :kp_7}, _state), do: {:msg, {:send_command, "northwest"}}
+  def event_to_msg(%Event.Key{key: :kp_8}, _state), do: {:msg, {:send_command, "north"}}
+  def event_to_msg(%Event.Key{key: :kp_9}, _state), do: {:msg, {:send_command, "northeast"}}
+  def event_to_msg(%Event.Key{key: :kp_4}, _state), do: {:msg, {:send_command, "west"}}
+  def event_to_msg(%Event.Key{key: :kp_5}, _state), do: {:msg, {:send_command, "look"}}
+  def event_to_msg(%Event.Key{key: :kp_6}, _state), do: {:msg, {:send_command, "east"}}
+  def event_to_msg(%Event.Key{key: :kp_1}, _state), do: {:msg, {:send_command, "southwest"}}
+  def event_to_msg(%Event.Key{key: :kp_2}, _state), do: {:msg, {:send_command, "south"}}
+  def event_to_msg(%Event.Key{key: :kp_3}, _state), do: {:msg, {:send_command, "southeast"}}
 
   def event_to_msg(%Event.Key{key: :backspace}, _state), do: {:msg, :backspace}
 
