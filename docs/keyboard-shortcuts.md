@@ -252,6 +252,8 @@ Some environments may intercept certain keys:
 ## Related Documentation
 
 - [README.md](../README.md) - General client documentation
+- [Remote REPL Guide](remote-repl.md) - Debugging with remote REPL access
+- [Remote REPL Quick Reference](remote-repl-quickref.md) - Common remote REPL commands
 
 ## Customization
 

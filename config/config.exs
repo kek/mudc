@@ -10,6 +10,13 @@ config :logger, :default_handler, false
 # Set log level
 config :logger, level: :debug
 
+# Distributed Erlang configuration for remote REPL access
+# Start the node with: iex --sname mudc -S mix
+# Connect remotely with: iex --sname debug --remsh mudc@hostname
+config :mudc,
+  node_name: :mudc,
+  cookie: :mudc_secret_cookie
+
 # Import environment-specific config (dev, prod, test)
 # These can override settings above
 import_config "#{config_env()}.exs"

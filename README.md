@@ -11,6 +11,9 @@ mix deps.get
 # Run the client
 iex -S mix
 iex> Mudc.run()
+
+# Or run with remote REPL support (for debugging)
+./start.sh
 ```
 
 ## Connection
@@ -48,6 +51,67 @@ When the UI is running, you can use these commands:
 
 
 This feature is particularly useful for development and debugging without having to restart the entire client.
+
+## Remote REPL Access
+
+For debugging and inspection, you can connect to a running Mudc instance from a separate terminal using distributed Erlang.
+
+### Starting with Remote REPL Enabled
+
+```bash
+# Start Mudc with named node (enables remote access)
+./start.sh
+
+# Or manually:
+iex --sname mudc --cookie mudc_secret_cookie -S mix
+```
+
+### Connecting to Running Instance
+
+In a separate terminal, connect to the running Mudc instance:
+
+```bash
+# Connect using the helper script
+./connect.sh
+
+# Or manually:
+iex --sname debug --cookie mudc_secret_cookie --remsh mudc@$(hostname -s)
+```
+
+Once connected, you have full access to the running application:
+
+```elixir
+# Check connection status
+Mudc.status()
+
+# Send commands to the MUD
+Mudc.send("look")
+
+# Inspect application state
+:sys.get_state(Mudc.Network.Connection)
+
+# View logs programmatically
+Mudc.UI.LogBuffer.get_logs()
+
+# Check which processes are running
+Process.whereis(Mudc.Network.Connection)
+Process.whereis(TermUI.Runtime)
+```
+
+**Note**: When you exit the remote shell (Ctrl+C twice), the main Mudc application continues running. This allows non-intrusive debugging and inspection.
+
+### Custom Node Names
+
+```bash
+# Start with custom node name
+./start.sh mynode
+
+# Connect to custom node
+./connect.sh mynode
+
+# Connect to node on different host
+./connect.sh mudc othermachine
+```
 
 ### Connection Status
 

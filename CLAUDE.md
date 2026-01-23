@@ -37,7 +37,46 @@ mix format
 
 # Start interactive shell with app loaded
 iex -S mix
+
+# Start with remote REPL support (for debugging)
+./start.sh
+
+# Connect to running instance from another terminal
+./connect.sh
 ```
+
+## Remote REPL Access
+
+For debugging and inspection, you can connect to a running Mudc instance from a separate terminal:
+
+```bash
+# Terminal 1: Start Mudc with named node
+./start.sh
+
+# Terminal 2: Connect to the running instance
+./connect.sh
+```
+
+Once connected, you have full access to the running application:
+
+```elixir
+# Check connection status
+Mudc.status()
+
+# Send commands
+Mudc.send("look")
+
+# Inspect state
+:sys.get_state(Mudc.Network.Connection)
+
+# View logs
+Mudc.UI.LogBuffer.get_logs()
+
+# Hot reload code
+recompile()
+```
+
+See `docs/remote-repl.md` for detailed documentation.
 
 ## Architecture
 
