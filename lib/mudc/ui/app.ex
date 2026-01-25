@@ -26,12 +26,13 @@ defmodule Mudc.UI.App do
 
   require Logger
 
-  alias TermUI.Event
   alias TermUI.Renderer.Style
   alias TermUI.Terminal
   alias Mudc.Events.Bus
   alias Mudc.Network.Connection
   alias Mudc.UI.AnsiParser
+  alias Mudc.UI.EventHandler
+  alias Mudc.UI.ScrollUtils
 
   @max_lines 1000
   # Reserved lines: header(1) + tabs(1) + vitals(1) + top_border(1) + bottom_border(1) + empty(1) + input(1) + status(1) = 8
@@ -109,96 +110,8 @@ defmodule Mudc.UI.App do
     }
   end
 
-  def event_to_msg(%Event.Key{key: :enter}, state) do
-    {:msg, {:send_command, state.input_buffer}}
-  end
-
-  # History navigation (up/down without modifiers)
-  def event_to_msg(%Event.Key{key: :up, modifiers: []}, %{history: history})
-      when history != [] do
-    {:msg, :history_prev}
-  end
-
-  def event_to_msg(%Event.Key{key: :down, modifiers: []}, %{history_index: idx})
-      when not is_nil(idx) do
-    {:msg, :history_next}
-  end
-
-  # Ctrl+Arrow for directional movement
-  def event_to_msg(%Event.Key{key: :up, modifiers: [:ctrl]}, _state) do
-    {:msg, {:send_command, "north"}}
-  end
-
-  def event_to_msg(%Event.Key{key: :down, modifiers: [:ctrl]}, _state) do
-    {:msg, {:send_command, "south"}}
-  end
-
-  def event_to_msg(%Event.Key{key: :left, modifiers: [:ctrl]}, _state) do
-    {:msg, {:send_command, "west"}}
-  end
-
-  def event_to_msg(%Event.Key{key: :right, modifiers: [:ctrl]}, _state) do
-    {:msg, {:send_command, "east"}}
-  end
-
-  # Numpad commands (for terminals with application keypad mode)
-  def event_to_msg(%Event.Key{key: :kp_up}, _state), do: {:msg, {:send_command, "north"}}
-  def event_to_msg(%Event.Key{key: :kp_down}, _state), do: {:msg, {:send_command, "south"}}
-  def event_to_msg(%Event.Key{key: :kp_left}, _state), do: {:msg, {:send_command, "west"}}
-  def event_to_msg(%Event.Key{key: :kp_right}, _state), do: {:msg, {:send_command, "east"}}
-  def event_to_msg(%Event.Key{key: :kp_7}, _state), do: {:msg, {:send_command, "stand"}}
-  def event_to_msg(%Event.Key{key: :kp_8}, _state), do: {:msg, {:send_command, "north"}}
-  def event_to_msg(%Event.Key{key: :kp_9}, _state), do: {:msg, {:send_command, "up"}}
-  def event_to_msg(%Event.Key{key: :kp_4}, _state), do: {:msg, {:send_command, "west"}}
-  def event_to_msg(%Event.Key{key: :kp_5}, _state), do: {:msg, {:send_command, "look"}}
-  def event_to_msg(%Event.Key{key: :kp_6}, _state), do: {:msg, {:send_command, "east"}}
-  def event_to_msg(%Event.Key{key: :kp_1}, _state), do: {:msg, {:send_command, "rest"}}
-  def event_to_msg(%Event.Key{key: :kp_2}, _state), do: {:msg, {:send_command, "south"}}
-  def event_to_msg(%Event.Key{key: :kp_3}, _state), do: {:msg, {:send_command, "down"}}
-  def event_to_msg(%Event.Key{key: :kp_plus}, _state), do: {:msg, {:send_command, "score"}}
-  def event_to_msg(%Event.Key{key: :kp_minus}, _state), do: {:msg, {:send_command, "info"}}
-  def event_to_msg(%Event.Key{key: :kp_multiply}, _state), do: {:msg, {:send_command, "x"}}
-
-  def event_to_msg(%Event.Key{key: :backspace}, _state), do: {:msg, :backspace}
-
-  # Ctrl+C and Ctrl+Q quit
-  def event_to_msg(%Event.Key{key: key, modifiers: [:ctrl]}, _state) when key in ["c", "q"] do
-    {:msg, :quit}
-  end
-
-  def event_to_msg(%Event.Key{key: key}, _state) when key in ["c", "q"] do
-    {:msg, {:char, key}}
-  end
-
-  # Ctrl+L is ignored (terminal clear)
-  def event_to_msg(%Event.Key{key: "l", modifiers: [:ctrl]}, _state), do: :ignore
-
-  def event_to_msg(%Event.Key{key: "l"}, _state), do: {:msg, {:char, "l"}}
-
-  # Function keys - Screen switching
-  def event_to_msg(%Event.Key{key: :f3}, _state), do: {:msg, {:switch_screen, :game}}
-  def event_to_msg(%Event.Key{key: :f4}, _state), do: {:msg, {:switch_screen, :dog}}
-  def event_to_msg(%Event.Key{key: :f5, modifiers: [:ctrl]}, _state), do: {:msg, :recompile}
-  def event_to_msg(%Event.Key{key: :f5}, _state), do: {:msg, {:switch_screen, :cat}}
-
-  # Page Up/Down - scrolling
-  def event_to_msg(%Event.Key{key: :page_up}, state),
-    do: {:msg, {:scroll, -state.viewport_height}}
-
-  def event_to_msg(%Event.Key{key: :page_down}, state),
-    do: {:msg, {:scroll, state.viewport_height}}
-
-  # Regular character input
-  def event_to_msg(%Event.Key{char: char}, _state) when is_binary(char) and char != "" do
-    {:msg, {:char, char}}
-  end
-
-  # Terminal resize
-  def event_to_msg(%Event.Resize{width: width, height: height}, _state) do
-    {:msg, {:resize, width, height}}
-  end
-
-  def event_to_msg(_event, _state), do: :ignore
+  # Delegate event handling to EventHandler module
+  defdelegate event_to_msg(event, state), to: EventHandler
 
   def update({:send_command, ""}, state) do
     {state, []}
@@ -279,10 +192,14 @@ defmodule Mudc.UI.App do
   def update({:scroll, delta}, state) do
     case state.current_screen do
       :game ->
-        max_scroll = max(0, length(state.lines) - state.viewport_height)
-        new_offset = state.scroll_offset + delta
-        new_offset = max(0, min(max_scroll, new_offset))
-        auto_scroll = new_offset >= max_scroll
+        {new_offset, auto_scroll} =
+          ScrollUtils.apply_scroll(
+            state.scroll_offset,
+            delta,
+            length(state.lines),
+            state.viewport_height
+          )
+
         {%{state | scroll_offset: new_offset, auto_scroll: auto_scroll}, []}
 
       :dog ->
@@ -291,10 +208,14 @@ defmodule Mudc.UI.App do
         dog_height = dog_lines_count + 4
         log_viewport_height = max(state.term_height - @reserved_lines - dog_height, 5)
 
-        max_scroll = max(0, length(state.log_lines) - log_viewport_height)
-        new_offset = state.dog_scroll_offset + delta
-        new_offset = max(0, min(max_scroll, new_offset))
-        dog_auto_scroll = new_offset >= max_scroll
+        {new_offset, dog_auto_scroll} =
+          ScrollUtils.apply_scroll(
+            state.dog_scroll_offset,
+            delta,
+            length(state.log_lines),
+            log_viewport_height
+          )
+
         {%{state | dog_scroll_offset: new_offset, dog_auto_scroll: dog_auto_scroll}, []}
 
       _ ->
@@ -303,12 +224,14 @@ defmodule Mudc.UI.App do
   end
 
   def update(:scroll_top, state) do
+    {offset, auto_scroll} = ScrollUtils.scroll_to_top()
+
     case state.current_screen do
       :game ->
-        {%{state | scroll_offset: 0, auto_scroll: false}, []}
+        {%{state | scroll_offset: offset, auto_scroll: auto_scroll}, []}
 
       :dog ->
-        {%{state | dog_scroll_offset: 0, dog_auto_scroll: false}, []}
+        {%{state | dog_scroll_offset: offset, dog_auto_scroll: auto_scroll}, []}
 
       _ ->
         {state, []}
@@ -318,15 +241,20 @@ defmodule Mudc.UI.App do
   def update(:scroll_bottom, state) do
     case state.current_screen do
       :game ->
-        max_scroll = max(0, length(state.lines) - state.viewport_height)
-        {%{state | scroll_offset: max_scroll, auto_scroll: true}, []}
+        {offset, auto_scroll} =
+          ScrollUtils.scroll_to_bottom(length(state.lines), state.viewport_height)
+
+        {%{state | scroll_offset: offset, auto_scroll: auto_scroll}, []}
 
       :dog ->
         dog_lines_count = String.split(@dog_art, "\n", trim: true) |> length()
         dog_height = dog_lines_count + 4
         log_viewport_height = max(state.term_height - @reserved_lines - dog_height, 5)
-        max_scroll = max(0, length(state.log_lines) - log_viewport_height)
-        {%{state | dog_scroll_offset: max_scroll, dog_auto_scroll: true}, []}
+
+        {offset, auto_scroll} =
+          ScrollUtils.scroll_to_bottom(length(state.log_lines), log_viewport_height)
+
+        {%{state | dog_scroll_offset: offset, dog_auto_scroll: auto_scroll}, []}
 
       _ ->
         {state, []}
@@ -337,15 +265,14 @@ defmodule Mudc.UI.App do
     viewport_height = calculate_viewport_height(height)
 
     # Adjust scroll offsets if needed
-    max_scroll = max(0, length(state.lines) - viewport_height)
-    scroll_offset = min(state.scroll_offset, max_scroll)
+    scroll_offset = ScrollUtils.clamp_scroll(state.scroll_offset, length(state.lines), viewport_height)
 
     # Also adjust dog screen scroll offset
     dog_lines_count = String.split(@dog_art, "\n", trim: true) |> length()
     dog_height = dog_lines_count + 4
     log_viewport_height = max(height - @reserved_lines - dog_height, 5)
-    max_dog_scroll = max(0, length(state.log_lines) - log_viewport_height)
-    dog_scroll_offset = min(state.dog_scroll_offset, max_dog_scroll)
+    dog_scroll_offset =
+      ScrollUtils.clamp_scroll(state.dog_scroll_offset, length(state.log_lines), log_viewport_height)
 
     {%{
        state
@@ -458,7 +385,7 @@ defmodule Mudc.UI.App do
         dog_height = dog_lines_count + 4
         log_viewport_height = max(state.term_height - @reserved_lines - dog_height, 5)
 
-        max(0, length(log_lines) - log_viewport_height)
+        ScrollUtils.calculate_max_scroll(length(log_lines), log_viewport_height)
       else
         state.dog_scroll_offset
       end
@@ -566,6 +493,29 @@ defmodule Mudc.UI.App do
   end
 
   defp render_debug_logs(state) do
+    {dog_lines, log_viewport_height} = calculate_log_viewport_dimensions(state)
+    visible_logs = get_visible_log_lines(state, log_viewport_height)
+    scroll_info = build_scroll_info(state, log_viewport_height)
+
+    dog_elements = render_dog_art(dog_lines)
+    log_elements = render_log_lines(visible_logs)
+    log_header = build_log_header(state, scroll_info)
+
+    border_width = min(state.term_width - 2, 78)
+    border = text("+" <> String.duplicate("-", border_width) <> "+", Style.new(fg: :blue))
+
+    stack(:vertical, [
+      border,
+      stack(:vertical, dog_elements),
+      border,
+      text(log_header, Style.new(fg: :cyan, attrs: [:bold])),
+      border,
+      stack(:vertical, log_elements),
+      border
+    ])
+  end
+
+  defp calculate_log_viewport_dimensions(state) do
     # Calculate how many lines we can show for logs
     # Reserved: header(1) + tabs(1) + vitals(1) + borders(2) + empty(1) + input(1) + status(1) = 8
     available_height = state.term_height - @reserved_lines
@@ -578,6 +528,10 @@ defmodule Mudc.UI.App do
     # Remaining space for logs
     log_viewport_height = max(available_height - dog_height, 5)
 
+    {dog_lines, log_viewport_height}
+  end
+
+  defp get_visible_log_lines(state, log_viewport_height) do
     # Get logs based on scroll offset
     visible_logs =
       state.log_lines
@@ -585,67 +539,51 @@ defmodule Mudc.UI.App do
       |> Enum.take(log_viewport_height)
 
     # Pad with empty lines if needed
-    visible_logs = visible_logs ++ List.duplicate("", log_viewport_height - length(visible_logs))
+    visible_logs ++ List.duplicate("", log_viewport_height - length(visible_logs))
+  end
 
-    # Build scroll info
+  defp build_scroll_info(state, log_viewport_height) do
     total_logs = length(state.log_lines)
 
-    scroll_info =
-      if total_logs > 0 do
-        "#{state.dog_scroll_offset + 1}-#{min(state.dog_scroll_offset + log_viewport_height, total_logs)}/#{total_logs}"
-      else
-        "0/0"
-      end
+    if total_logs > 0 do
+      first = state.dog_scroll_offset + 1
+      last = min(state.dog_scroll_offset + log_viewport_height, total_logs)
+      "#{first}-#{last}/#{total_logs}"
+    else
+      "0/0"
+    end
+  end
 
-    # Render dog art
-    dog_elements =
-      Enum.map(dog_lines, fn line ->
-        text("  " <> line, Style.new(fg: :bright_yellow, attrs: [:bold]))
-      end)
+  defp render_dog_art(dog_lines) do
+    Enum.map(dog_lines, fn line ->
+      text("  " <> line, Style.new(fg: :bright_yellow, attrs: [:bold]))
+    end)
+  end
 
-    # Render log lines
-    log_elements =
-      Enum.map(visible_logs, fn line ->
-        # Color code based on log level
-        style =
-          cond do
-            String.contains?(line, "[error]") -> Style.new(fg: :red, attrs: [:bold])
-            String.contains?(line, "[warning]") -> Style.new(fg: :yellow)
-            String.contains?(line, "[info]") -> Style.new(fg: :green)
-            String.contains?(line, "[debug]") -> Style.new(fg: :cyan, attrs: [:dim])
-            true -> Style.new(fg: :white)
-          end
+  defp render_log_lines(visible_logs) do
+    Enum.map(visible_logs, fn line ->
+      style = log_line_style(line)
+      text(line, style)
+    end)
+  end
 
-        text(line, style)
-      end)
+  defp log_line_style(line) do
+    cond do
+      String.contains?(line, "[error]") -> Style.new(fg: :red, attrs: [:bold])
+      String.contains?(line, "[warning]") -> Style.new(fg: :yellow)
+      String.contains?(line, "[info]") -> Style.new(fg: :green)
+      String.contains?(line, "[debug]") -> Style.new(fg: :cyan, attrs: [:dim])
+      true -> Style.new(fg: :white)
+    end
+  end
 
-    # Build log header with scroll info
+  defp build_log_header(state, scroll_info) do
     border_width = min(state.term_width - 2, 78)
     scroll_info_len = String.length(scroll_info)
-    log_header_padding = max(border_width - scroll_info_len - String.length("DEBUG LOGS ") - 3, 0)
-    log_header = "DEBUG LOGS " <> String.duplicate(" ", log_header_padding) <> " " <> scroll_info
+    label = "DEBUG LOGS "
+    padding_size = max(border_width - scroll_info_len - String.length(label) - 3, 0)
 
-    stack(:vertical, [
-      text(
-        "+" <> String.duplicate("-", border_width) <> "+",
-        Style.new(fg: :blue)
-      ),
-      stack(:vertical, dog_elements),
-      text(
-        "+" <> String.duplicate("-", border_width) <> "+",
-        Style.new(fg: :blue)
-      ),
-      text(log_header, Style.new(fg: :cyan, attrs: [:bold])),
-      text(
-        "+" <> String.duplicate("-", border_width) <> "+",
-        Style.new(fg: :blue)
-      ),
-      stack(:vertical, log_elements),
-      text(
-        "+" <> String.duplicate("-", border_width) <> "+",
-        Style.new(fg: :blue)
-      )
-    ])
+    label <> String.duplicate(" ", padding_size) <> " " <> scroll_info
   end
 
   # ----------------------------------------------------------------------------
@@ -659,7 +597,7 @@ defmodule Mudc.UI.App do
     # Auto-scroll if enabled
     scroll_offset =
       if state.auto_scroll do
-        max(0, length(lines) - state.viewport_height)
+        ScrollUtils.calculate_max_scroll(length(lines), state.viewport_height)
       else
         state.scroll_offset
       end

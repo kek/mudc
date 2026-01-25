@@ -6,6 +6,12 @@ defmodule Mudc.Network.ConnectionTest do
   # Note: These tests work with the Connection that's started by the Application.
   # The Connection is configured to not auto-connect by default in test env.
 
+  setup do
+    # Ensure we're disconnected before each test
+    Connection.disconnect()
+    :ok
+  end
+
   describe "status/0" do
     test "returns connection information" do
       status = Connection.status()
