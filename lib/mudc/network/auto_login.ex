@@ -17,7 +17,7 @@ defmodule Mudc.Network.AutoLogin do
   @name_prompt "By what name do you wish to be known?"
   @password_prompt "Account password:"
 
-  defstruct [:username, :password, :sent_username, :sent_password]
+  defstruct [:has_credentials, :sent_username, :sent_password]
 
   # Client API
 
@@ -32,19 +32,17 @@ defmodule Mudc.Network.AutoLogin do
     # Subscribe to game text events
     Bus.subscribe(:game_text)
 
+    # Check if credentials are available without storing them
+    has_credentials = has_credentials?()
+
     state = %__MODULE__{
-      username: System.get_env("USERNAME"),
-      password: System.get_env("PASSWORD"),
+      has_credentials: has_credentials,
       sent_username: false,
       sent_password: false
     }
 
-    if state.username do
-      Logger.debug("AutoLogin: USERNAME environment variable is set")
-    end
-
-    if state.password do
-      Logger.debug("AutoLogin: PASSWORD environment variable is set")
+    if has_credentials do
+      Logger.debug("AutoLogin: Credentials are configured")
     end
 
     {:ok, state}
@@ -69,6 +67,14 @@ defmodule Mudc.Network.AutoLogin do
 
   # Private Functions
 
+  # Fetch credentials on-demand instead of storing in state
+  defp get_credential(:username), do: System.get_env("USERNAME")
+  defp get_credential(:password), do: System.get_env("PASSWORD")
+
+  defp has_credentials? do
+    not is_nil(System.get_env("USERNAME")) and not is_nil(System.get_env("PASSWORD"))
+  end
+
   defp check_for_prompts(text, state) do
     state
     |> maybe_send_username(text)
@@ -81,14 +87,21 @@ defmodule Mudc.Network.AutoLogin do
         # Already sent username
         state
 
-      is_nil(state.username) ->
-        # No username configured
+      not state.has_credentials ->
+        # No credentials configured
         state
 
       String.contains?(text, @name_prompt) ->
-        Logger.info("AutoLogin: Detected name prompt, sending username")
-        Connection.send_command(state.username)
-        %{state | sent_username: true}
+        # Fetch username on-demand when needed
+        username = get_credential(:username)
+
+        if username do
+          Logger.info("AutoLogin: Detected name prompt, sending username")
+          Connection.send_command(username)
+          %{state | sent_username: true}
+        else
+          state
+        end
 
       true ->
         state
@@ -101,14 +114,21 @@ defmodule Mudc.Network.AutoLogin do
         # Already sent password
         state
 
-      is_nil(state.password) ->
-        # No password configured
+      not state.has_credentials ->
+        # No credentials configured
         state
 
       String.contains?(text, @password_prompt) ->
-        Logger.info("AutoLogin: Detected password prompt, sending password")
-        Connection.send_command(state.password)
-        %{state | sent_password: true}
+        # Fetch password on-demand when needed
+        password = get_credential(:password)
+
+        if password do
+          Logger.info("AutoLogin: Detected password prompt, sending password")
+          Connection.send_command(password)
+          %{state | sent_password: true}
+        else
+          state
+        end
 
       true ->
         state
