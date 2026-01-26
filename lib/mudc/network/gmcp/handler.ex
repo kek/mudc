@@ -15,9 +15,10 @@ defmodule Mudc.Network.GMCP.Handler do
   alias Mudc.Events.Bus
   alias Mudc.Network.GMCP.Parser
   alias Mudc.Network.GMCP.Negotiation
+  alias Mudc.Network.Telnet.Constants, as: TC
 
-  # GMCP option constant for guards
-  @opt_gmcp 201
+  # GMCP option constant for guards (from TC module)
+  @opt_gmcp TC.opt_gmcp()
 
   defstruct [:enabled, :supported_packages]
 

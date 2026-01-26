@@ -7,7 +7,14 @@ defmodule Mudc.MixProject do
       version: "0.1.0",
       elixir: "~> 1.19",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      # Documentation
+      name: "Mudc",
+      source_url: "https://github.com/user/mudc",
+      docs: [
+        main: "readme",
+        extras: ["README.md", "CLAUDE.md"]
+      ]
     ]
   end
 
@@ -27,7 +34,8 @@ defmodule Mudc.MixProject do
       {:toml, "~> 0.7"},
       {:luerl, "~> 1.2"},
       {:mox, "~> 1.0", only: :test},
-      {:stream_data, "~> 1.0", only: :test}
+      {:stream_data, "~> 1.0", only: :test},
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
     ]
   end
 end

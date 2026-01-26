@@ -14,8 +14,8 @@ defmodule Mudc.Network.Connection do
   alias Mudc.Events.Bus
   alias Mudc.Protocol.Dispatcher
 
+  # Default host for connections (Config.Manager is the source of truth for port)
   @default_host ~c"localhost"
-  @default_port 23
 
   defstruct [:socket, :host, :port, :connected]
 
@@ -30,8 +30,9 @@ defmodule Mudc.Network.Connection do
 
   @doc """
   Connects to the MUD server.
+  Uses configured defaults if not specified.
   """
-  def connect(host \\ @default_host, port \\ @default_port) do
+  def connect(host \\ nil, port \\ nil) do
     GenServer.call(__MODULE__, {:connect, host, port})
   end
 
@@ -61,8 +62,9 @@ defmodule Mudc.Network.Connection do
   @impl true
   def init(opts) do
     # Read from config, with opts overriding config values
+    # Port default (4242) is defined in Config.Manager for MMapper compatibility
     config_host = System.get_env("MUD_HOST") || Config.get(:connection, :host) || "localhost"
-    config_port = parse_env_port("MUD_PORT") || Config.get(:connection, :port) || @default_port
+    config_port = parse_env_port("MUD_PORT") || Config.get(:connection, :port) || 4242
     config_auto_connect = Config.get(:connection, :auto_connect) || false
 
     host = Keyword.get(opts, :host, to_charlist(config_host))
@@ -86,18 +88,22 @@ defmodule Mudc.Network.Connection do
 
   @impl true
   def handle_call({:connect, host, port}, _from, state) do
-    case do_connect(host, port) do
+    # Use state defaults if not provided
+    connect_host = host || state.host
+    connect_port = port || state.port
+
+    case do_connect(connect_host, connect_port) do
       {:ok, socket} ->
-        Logger.info("Connected to #{host}:#{port}")
-        Bus.publish(:connection, {:connected, host, port})
-        new_state = %{state | socket: socket, host: host, port: port, connected: true}
+        Logger.info("Connected to #{connect_host}:#{connect_port}")
+        Bus.publish(:connection, {:connected, connect_host, connect_port})
+        new_state = %{state | socket: socket, host: connect_host, port: connect_port, connected: true}
         {:reply, :ok, new_state}
 
       {:error, reason} = error ->
         ErrorHandler.connection_error(
           "Failed to connect",
           reason,
-          %{host: host, port: port}
+          %{host: connect_host, port: connect_port}
         )
 
         {:reply, error, state}
@@ -213,6 +219,17 @@ defmodule Mudc.Network.Connection do
   def handle_info(msg, state) do
     Logger.debug("Unexpected message: #{inspect(msg)}")
     {:noreply, state}
+  end
+
+  @impl true
+  def terminate(reason, state) do
+    # Clean up TCP socket on shutdown
+    if state.socket do
+      Logger.debug("Closing connection on terminate: #{inspect(reason)}")
+      :gen_tcp.close(state.socket)
+    end
+
+    :ok
   end
 
   # Private Functions

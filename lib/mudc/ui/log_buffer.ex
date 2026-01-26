@@ -22,6 +22,8 @@ defmodule Mudc.UI.LogBuffer do
 
   use GenServer
 
+  alias Mudc.Utils.Time
+
   @max_lines 500
 
   defstruct lines: [], subscribers: []
@@ -113,7 +115,7 @@ defmodule Mudc.UI.LogBuffer do
 
   @impl true
   def handle_cast({:add_log, level, message, metadata}, state) do
-    timestamp = format_timestamp()
+    timestamp = Time.format_timestamp()
     module = Keyword.get(metadata, :module, "")
     module_str = if module != "", do: " [#{inspect(module)}]", else: ""
 
@@ -156,10 +158,5 @@ defmodule Mudc.UI.LogBuffer do
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
     subscribers = List.delete(state.subscribers, pid)
     {:noreply, %{state | subscribers: subscribers}}
-  end
-
-  defp format_timestamp do
-    {{_y, _m, _d}, {h, m, s}} = :calendar.local_time()
-    :io_lib.format("~2..0B:~2..0B:~2..0B", [h, m, s]) |> to_string()
   end
 end

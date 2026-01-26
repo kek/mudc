@@ -36,6 +36,7 @@ defmodule Mudc.Debug do
   alias Mudc.UI.LogBuffer
   alias Mudc.Network.Connection
   alias Mudc.State.GameState
+  alias Mudc.Utils.Time
 
   @doc """
   Show overall application status.
@@ -285,7 +286,7 @@ defmodule Mudc.Debug do
   end
 
   defp monitor_memory_loop(interval_ms) do
-    IO.puts("#{timestamp()} - Memory: #{memory_mb()} MB, Processes: #{length(Process.list())}")
+    IO.puts("#{Time.format_timestamp()} - Memory: #{memory_mb()} MB, Processes: #{length(Process.list())}")
     Process.sleep(interval_ms)
     monitor_memory_loop(interval_ms)
   end
@@ -356,10 +357,5 @@ defmodule Mudc.Debug do
 
   defp bytes_to_mb(bytes) when is_integer(bytes) do
     Float.round(bytes / 1024 / 1024, 2)
-  end
-
-  defp timestamp do
-    {{_y, _m, _d}, {h, m, s}} = :calendar.local_time()
-    :io_lib.format("~2..0B:~2..0B:~2..0B", [h, m, s]) |> to_string()
   end
 end

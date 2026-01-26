@@ -18,12 +18,12 @@ defmodule Mudc.Protocol.Dispatcher do
   alias Mudc.Network.Telnet.Constants, as: TC
   alias Mudc.Network.GMCP.Handler, as: GMCPHandler
 
-  # Telnet option constants for guards
-  @opt_gmcp 201
-  @opt_suppress_go_ahead 3
-  @opt_echo 1
-  @opt_terminal_type 24
-  @opt_window_size 31
+  # Telnet option constants for guards (from TC module)
+  @opt_gmcp TC.opt_gmcp()
+  @opt_suppress_go_ahead TC.opt_suppress_go_ahead()
+  @opt_echo TC.opt_echo()
+  @opt_terminal_type TC.opt_terminal_type()
+  @opt_window_size TC.opt_window_size()
 
   defstruct [:buffer, :socket_pid]
 

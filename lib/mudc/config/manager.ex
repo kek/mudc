@@ -2,8 +2,14 @@ defmodule Mudc.Config.Manager do
   @moduledoc """
   TOML configuration manager with hot-reload support.
 
+  Uses ETS for fast concurrent reads (10-100x faster than GenServer calls).
   Loads configuration from ~/.config/mudc/config.toml and watches for changes.
   Broadcasts config_changed events when the configuration is updated.
+
+  ## Performance
+
+  Config reads use ETS with `read_concurrency: true` for lock-free reads.
+  Only reload/1 requires a GenServer call.
 
   ## Configuration File Format
 
@@ -35,13 +41,17 @@ defmodule Mudc.Config.Manager do
   @default_config_path "~/.config/mudc/config.toml"
   # Check for changes every 5 seconds
   @check_interval 5_000
+  # ETS table name for config storage
+  @table_name :mudc_config
 
-  defstruct [:config_path, :config, :last_modified, :watch_timer]
+  defstruct [:config_path, :last_modified, :watch_timer]
 
   # Default configuration values
   @defaults %{
     connection: %{
       host: "localhost",
+      # Default port 4242 is for MMapper compatibility (MUME proxy)
+      # Standard Telnet is 23, but Mudc is designed for MMapper integration
       port: 4242,
       auto_connect: true,
       timeout_ms: 5000,
@@ -57,6 +67,8 @@ defmodule Mudc.Config.Manager do
     ui: %{
       viewport_height: 20,
       max_lines: 1000,
+      max_history_size: 100,
+      min_viewport_height: 5,
       vitals: %{
         warning_threshold: 0.7,
         danger_threshold: 0.3
@@ -79,23 +91,31 @@ defmodule Mudc.Config.Manager do
 
   @doc """
   Get the entire configuration.
+  Fast ETS read, no GenServer call required.
   """
   def get do
-    GenServer.call(__MODULE__, :get)
+    case :ets.lookup(@table_name, :config) do
+      [{:config, config}] -> config
+      [] -> @defaults
+    end
   end
 
   @doc """
   Get a configuration section.
+  Fast ETS read, no GenServer call required.
   """
   def get(section) when is_atom(section) do
-    GenServer.call(__MODULE__, {:get, section})
+    config = get()
+    Map.get(config, section, %{})
   end
 
   @doc """
   Get a specific configuration value.
+  Fast ETS read, no GenServer call required.
   """
   def get(section, key) when is_atom(section) and is_atom(key) do
-    GenServer.call(__MODULE__, {:get, section, key})
+    section_config = get(section)
+    Map.get(section_config, key)
   end
 
   @doc """
@@ -118,9 +138,19 @@ defmodule Mudc.Config.Manager do
   def init(opts) do
     config_path = Keyword.get(opts, :config_path, @default_config_path) |> Path.expand()
 
+    # Create ETS table for fast concurrent reads
+    :ets.new(@table_name, [
+      :set,
+      :named_table,
+      :public,
+      read_concurrency: true
+    ])
+
+    # Store initial defaults in ETS
+    :ets.insert(@table_name, {:config, @defaults})
+
     state = %__MODULE__{
       config_path: config_path,
-      config: @defaults,
       last_modified: nil,
       watch_timer: nil
     }
@@ -132,24 +162,6 @@ defmodule Mudc.Config.Manager do
     state = start_watching(state)
 
     {:ok, state}
-  end
-
-  @impl true
-  def handle_call(:get, _from, state) do
-    {:reply, state.config, state}
-  end
-
-  @impl true
-  def handle_call({:get, section}, _from, state) do
-    value = Map.get(state.config, section, %{})
-    {:reply, value, state}
-  end
-
-  @impl true
-  def handle_call({:get, section, key}, _from, state) do
-    section_config = Map.get(state.config, section, %{})
-    value = Map.get(section_config, key)
-    {:reply, value, state}
   end
 
   @impl true
@@ -176,6 +188,21 @@ defmodule Mudc.Config.Manager do
     {:noreply, state}
   end
 
+  @impl true
+  def terminate(_reason, state) do
+    # Cancel watch timer on shutdown
+    if state.watch_timer do
+      Process.cancel_timer(state.watch_timer)
+    end
+
+    # Clean up ETS table
+    if :ets.whereis(@table_name) != :undefined do
+      :ets.delete(@table_name)
+    end
+
+    :ok
+  end
+
   # Private Functions
 
   defp load_config(state) do
@@ -185,9 +212,13 @@ defmodule Mudc.Config.Manager do
           {:ok, parsed} ->
             config = merge_config(@defaults, atomize_keys(parsed))
             mtime = get_mtime(state.config_path)
+
+            # Store config in ETS for fast reads
+            :ets.insert(@table_name, {:config, config})
+
             Logger.info("Loaded configuration from #{state.config_path}")
             Bus.publish(:config, {:loaded, config})
-            %{state | config: config, last_modified: mtime}
+            %{state | last_modified: mtime}
 
           {:error, reason} ->
             ErrorHandler.log_warning(
@@ -221,11 +252,12 @@ defmodule Mudc.Config.Manager do
 
     if mtime != state.last_modified and mtime != nil do
       Logger.info("Configuration file changed, reloading")
-      old_config = state.config
+      old_config = get()  # Read from ETS
       state = load_config(state)
+      new_config = get()  # Read from ETS
 
-      if state.config != old_config do
-        Bus.publish(:config, {:changed, state.config, old_config})
+      if new_config != old_config do
+        Bus.publish(:config, {:changed, new_config, old_config})
       end
 
       state

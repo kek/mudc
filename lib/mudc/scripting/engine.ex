@@ -190,6 +190,18 @@ defmodule Mudc.Scripting.Engine do
     {:noreply, state}
   end
 
+  @impl true
+  def terminate(_reason, state) do
+    # Cleanup Lua VM state on shutdown
+    # Luerl doesn't require explicit cleanup, but we clear our references
+    if state.lua_state do
+      Logger.debug("Cleaning up Lua VM on terminate")
+      # VM will be garbage collected
+    end
+
+    :ok
+  end
+
   # Private functions
 
   defp init_lua(state) do

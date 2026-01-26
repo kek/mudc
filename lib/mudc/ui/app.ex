@@ -34,9 +34,19 @@ defmodule Mudc.UI.App do
   alias Mudc.UI.EventHandler
   alias Mudc.UI.ScrollUtils
 
+  # Buffer configuration
   @max_lines 1000
+  @max_history_size 100
+
   # Reserved lines: header(1) + tabs(1) + vitals(1) + top_border(1) + bottom_border(1) + empty(1) + input(1) + status(1) = 8
   @reserved_lines 8
+
+  # Minimum viewport height to ensure readable display even on small terminals
+  @min_viewport_height 5
+
+  # Dog art padding: borders(2) + header space(1) + bottom padding(1) = 4
+  # This ensures proper spacing around the ASCII art
+  @dog_art_padding 4
 
   @dog_art """
       / \\__
@@ -134,7 +144,7 @@ defmodule Mudc.UI.App do
       _ ->
         case Connection.send_command(command) do
           :ok ->
-            history = [command | state.history] |> Enum.take(100)
+            history = [command | state.history] |> Enum.take(@max_history_size)
             {%{state | input_buffer: "", history: history, history_index: nil}, []}
 
           {:error, :not_connected} ->
@@ -205,8 +215,8 @@ defmodule Mudc.UI.App do
       :dog ->
         # Calculate viewport height for dog logs
         dog_lines_count = String.split(@dog_art, "\n", trim: true) |> length()
-        dog_height = dog_lines_count + 4
-        log_viewport_height = max(state.term_height - @reserved_lines - dog_height, 5)
+        dog_height = dog_lines_count + @dog_art_padding
+        log_viewport_height = max(state.term_height - @reserved_lines - dog_height, @min_viewport_height)
 
         {new_offset, dog_auto_scroll} =
           ScrollUtils.apply_scroll(
@@ -248,8 +258,8 @@ defmodule Mudc.UI.App do
 
       :dog ->
         dog_lines_count = String.split(@dog_art, "\n", trim: true) |> length()
-        dog_height = dog_lines_count + 4
-        log_viewport_height = max(state.term_height - @reserved_lines - dog_height, 5)
+        dog_height = dog_lines_count + @dog_art_padding
+        log_viewport_height = max(state.term_height - @reserved_lines - dog_height, @min_viewport_height)
 
         {offset, auto_scroll} =
           ScrollUtils.scroll_to_bottom(length(state.log_lines), log_viewport_height)
@@ -269,8 +279,8 @@ defmodule Mudc.UI.App do
 
     # Also adjust dog screen scroll offset
     dog_lines_count = String.split(@dog_art, "\n", trim: true) |> length()
-    dog_height = dog_lines_count + 4
-    log_viewport_height = max(height - @reserved_lines - dog_height, 5)
+    dog_height = dog_lines_count + @dog_art_padding
+    log_viewport_height = max(height - @reserved_lines - dog_height, @min_viewport_height)
     dog_scroll_offset =
       ScrollUtils.clamp_scroll(state.dog_scroll_offset, length(state.log_lines), log_viewport_height)
 
@@ -382,8 +392,8 @@ defmodule Mudc.UI.App do
       if state.dog_auto_scroll do
         # Calculate viewport height for dog logs
         dog_lines_count = String.split(@dog_art, "\n", trim: true) |> length()
-        dog_height = dog_lines_count + 4
-        log_viewport_height = max(state.term_height - @reserved_lines - dog_height, 5)
+        dog_height = dog_lines_count + @dog_art_padding
+        log_viewport_height = max(state.term_height - @reserved_lines - dog_height, @min_viewport_height)
 
         ScrollUtils.calculate_max_scroll(length(log_lines), log_viewport_height)
       else
@@ -522,11 +532,10 @@ defmodule Mudc.UI.App do
 
     # Show dog art at top (takes ~7 lines)
     dog_lines = String.split(@dog_art, "\n", trim: true)
-    # +4 for borders and spacing
-    dog_height = length(dog_lines) + 4
+    dog_height = length(dog_lines) + @dog_art_padding
 
     # Remaining space for logs
-    log_viewport_height = max(available_height - dog_height, 5)
+    log_viewport_height = max(available_height - dog_height, @min_viewport_height)
 
     {dog_lines, log_viewport_height}
   end
@@ -801,7 +810,7 @@ defmodule Mudc.UI.App do
 
   defp calculate_viewport_height(term_height) do
     # Calculate viewport height based on terminal height minus reserved lines
-    max(term_height - @reserved_lines, 5)
+    max(term_height - @reserved_lines, @min_viewport_height)
   end
 
   # ----------------------------------------------------------------------------
