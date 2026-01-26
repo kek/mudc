@@ -6,11 +6,16 @@ defmodule Mudc.Application do
   - Mudc.UI.LogBuffer (log message buffer for UI display)
   - Mudc.Events.Bus (Registry-based PubSub)
   - Mudc.Config.Manager (TOML configuration)
-  - Mudc.State.GameState (ETS-backed game state)
-  - Mudc.Network.GMCP.Handler (GMCP message processing)
-  - Mudc.Protocol.Dispatcher (Telnet protocol routing)
+  - Mudc.Protocol.Supervisor (:rest_for_one supervisor for protocol stack)
+    - Mudc.Protocol.Dispatcher (Telnet protocol routing)
+    - Mudc.Network.GMCP.Handler (GMCP message processing)
+    - Mudc.State.GameState (ETS-backed game state)
   - Mudc.Network.Connection (TCP socket management)
-  - Mudc.Scripting.Engine (Lua scripting VM)
+  - Mudc.Network.AutoLogin (auto-login handler)
+  - Mudc.Scripting.Engine (Lua VM only)
+  - Mudc.Scripting.TriggerManager (trigger pattern matching)
+  - Mudc.Scripting.AliasManager (command alias expansion)
+  - Mudc.Scripting.ScriptLoader (script file loading)
   """
 
   use Application
@@ -27,14 +32,9 @@ defmodule Mudc.Application do
       # Configuration manager (loads before other components)
       Mudc.Config.Manager,
 
-      # Game state (ETS table for vitals, room info, etc.)
-      Mudc.State.GameState,
-
-      # GMCP handler
-      Mudc.Network.GMCP.Handler,
-
-      # Protocol dispatcher (routes parsed Telnet to handlers)
-      Mudc.Protocol.Dispatcher,
+      # Protocol stack supervisor (:rest_for_one for consistent state)
+      # Groups: Dispatcher -> GMCP.Handler -> GameState
+      Mudc.Protocol.Supervisor,
 
       # Network connection
       Mudc.Network.Connection,
@@ -42,8 +42,12 @@ defmodule Mudc.Application do
       # Auto-login handler (sends credentials from env vars when prompted)
       Mudc.Network.AutoLogin,
 
-      # Lua scripting engine
-      Mudc.Scripting.Engine
+      # Lua scripting components (split for better isolation)
+      # VM crashes don't lose triggers/aliases
+      Mudc.Scripting.Engine,
+      Mudc.Scripting.TriggerManager,
+      Mudc.Scripting.AliasManager,
+      Mudc.Scripting.ScriptLoader
     ]
 
     opts = [strategy: :one_for_one, name: Mudc.Supervisor]
