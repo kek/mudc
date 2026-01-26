@@ -4,12 +4,14 @@ defmodule Mudc.Config.Manager do
 
   Uses ETS for fast concurrent reads (10-100x faster than GenServer calls).
   Loads configuration from ~/.config/mudc/config.toml and watches for changes.
+  Uses FileSystem for instant notifications when config file changes.
   Broadcasts config_changed events when the configuration is updated.
 
   ## Performance
 
-  Config reads use ETS with `read_concurrency: true` for lock-free reads.
-  Only reload/1 requires a GenServer call.
+  - Config reads use ETS with `read_concurrency: true` for lock-free reads
+  - Only reload/1 requires a GenServer call
+  - FileSystem provides instant change notifications (no polling delay)
 
   ## Configuration File Format
 
@@ -39,12 +41,10 @@ defmodule Mudc.Config.Manager do
   alias Mudc.Events.Bus
 
   @default_config_path "~/.config/mudc/config.toml"
-  # Check for changes every 5 seconds
-  @check_interval 5_000
   # ETS table name for config storage
   @table_name :mudc_config
 
-  defstruct [:config_path, :last_modified, :watch_timer]
+  defstruct [:config_path, :last_modified, :fs_pid]
 
   # Default configuration values
   @defaults %{
@@ -152,13 +152,13 @@ defmodule Mudc.Config.Manager do
     state = %__MODULE__{
       config_path: config_path,
       last_modified: nil,
-      watch_timer: nil
+      fs_pid: nil
     }
 
     # Load initial configuration
     state = load_config(state)
 
-    # Start watching for changes
+    # Start watching for changes with FileSystem
     state = start_watching(state)
 
     {:ok, state}
@@ -176,10 +176,20 @@ defmodule Mudc.Config.Manager do
   end
 
   @impl true
-  def handle_info(:check_config, state) do
-    state = check_for_changes(state)
-    # Schedule next check
-    schedule_next_check()
+  def handle_info({:file_event, _watcher_pid, {path, events}}, state) do
+    # FileSystem notification - config file changed
+    if Path.expand(path) == state.config_path and :modified in events do
+      Logger.debug("FileSystem detected config change: #{inspect(events)}")
+      state = check_for_changes(state)
+      {:noreply, state}
+    else
+      {:noreply, state}
+    end
+  end
+
+  @impl true
+  def handle_info({:file_event, _watcher_pid, :stop}, state) do
+    Logger.debug("FileSystem watcher stopped")
     {:noreply, state}
   end
 
@@ -190,9 +200,9 @@ defmodule Mudc.Config.Manager do
 
   @impl true
   def terminate(_reason, state) do
-    # Cancel watch timer on shutdown
-    if state.watch_timer do
-      Process.cancel_timer(state.watch_timer)
+    # Stop FileSystem watcher if running
+    if state.fs_pid do
+      FileSystem.stop(state.fs_pid)
     end
 
     # Clean up ETS table
@@ -267,13 +277,25 @@ defmodule Mudc.Config.Manager do
   end
 
   defp start_watching(state) do
-    # Schedule initial check
-    timer = Process.send_after(self(), :check_config, @check_interval)
-    %{state | watch_timer: timer}
-  end
+    # Use FileSystem for instant file change notifications
+    config_dir = Path.dirname(state.config_path)
 
-  defp schedule_next_check do
-    Process.send_after(self(), :check_config, @check_interval)
+    case FileSystem.start_link(dirs: [config_dir], name: :config_watcher) do
+      {:ok, pid} ->
+        FileSystem.subscribe(:config_watcher)
+        Logger.debug("Started FileSystem watcher for #{config_dir}")
+        %{state | fs_pid: pid}
+
+      {:error, {:already_started, pid}} ->
+        FileSystem.subscribe(:config_watcher)
+        Logger.debug("FileSystem watcher already running")
+        %{state | fs_pid: pid}
+
+      {:error, reason} ->
+        # Fallback: FileSystem not supported on this platform
+        Logger.warning("FileSystem watcher unavailable: #{inspect(reason)}, config changes won't be detected")
+        state
+    end
   end
 
   defp get_mtime(path) do

@@ -33,6 +33,7 @@ defmodule Mudc.MixProject do
       {:jason, "~> 1.4"},
       {:toml, "~> 0.7"},
       {:luerl, "~> 1.2"},
+      {:file_system, "~> 1.0"},
       {:mox, "~> 1.0", only: :test},
       {:stream_data, "~> 1.0", only: :test},
       {:ex_doc, "~> 0.31", only: :dev, runtime: false}

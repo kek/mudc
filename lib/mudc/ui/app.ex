@@ -30,37 +30,16 @@ defmodule Mudc.UI.App do
   alias TermUI.Terminal
   alias Mudc.Events.Bus
   alias Mudc.Network.Connection
-  alias Mudc.UI.AnsiParser
   alias Mudc.UI.EventHandler
-  alias Mudc.UI.ScrollUtils
+  alias Mudc.UI.Screens.GameScreen
+  alias Mudc.UI.Screens.DebugScreen
+  alias Mudc.UI.Screens.InfoScreen
 
-  # Buffer configuration
-  @max_lines 1000
+  # Configuration
   @max_history_size 100
 
   # Reserved lines: header(1) + tabs(1) + vitals(1) + top_border(1) + bottom_border(1) + empty(1) + input(1) + status(1) = 8
   @reserved_lines 8
-
-  # Minimum viewport height to ensure readable display even on small terminals
-  @min_viewport_height 5
-
-  # Dog art padding: borders(2) + header space(1) + bottom padding(1) = 4
-  # This ensures proper spacing around the ASCII art
-  @dog_art_padding 4
-
-  @dog_art """
-      / \\__
-     (    @\\___
-     /         O
-    /   (_____/
-   /_____/   U
-  """
-
-  @cat_art """
-   /\\_/\\
-  ( o.o )
-   > ^ <
-  """
 
   # ----------------------------------------------------------------------------
   # Component Callbacks
@@ -88,14 +67,10 @@ defmodule Mudc.UI.App do
       # Screen selection
       current_screen: :game,
 
-      # Game text lines (newest at the end)
-      lines: [
-        "Welcome to Mudc - MUME Client",
-        "Type /connect to connect, /disconnect to disconnect, /quit to exit",
-        "Press F4 for debug logs | Ctrl+F5 to recompile | F3/F4/F5 switch screens"
-      ],
-      scroll_offset: 0,
-      auto_scroll: true,
+      # Screens
+      game_screen: GameScreen.new(),
+      debug_screen: DebugScreen.new(),
+      info_screen: InfoScreen.new(),
 
       # Command input (simple string buffer)
       input_buffer: "",
@@ -107,16 +82,7 @@ defmodule Mudc.UI.App do
       # Connection status
       connected: false,
       status_message:
-        "Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F4: debug logs | Ctrl+F5: recompile",
-
-      # GMCP data
-      vitals: %{},
-      room: %{},
-
-      # Debug logs for dog screen
-      log_lines: [],
-      dog_scroll_offset: 0,
-      dog_auto_scroll: true
+        "Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F4: debug logs | Ctrl+F5: recompile"
     }
   end
 
@@ -148,12 +114,12 @@ defmodule Mudc.UI.App do
             {%{state | input_buffer: "", history: history, history_index: nil}, []}
 
           {:error, :not_connected} ->
-            new_state = add_local_line(state, "[Not connected - use /connect to connect]")
-            {%{new_state | input_buffer: ""}, []}
+            game_screen = GameScreen.add_line(state.game_screen, "[Not connected - use /connect to connect]", state.viewport_height)
+            {%{state | input_buffer: "", game_screen: game_screen}, []}
 
           {:error, reason} ->
-            new_state = add_local_line(state, "[Send error: #{inspect(reason)}]")
-            {new_state, []}
+            game_screen = GameScreen.add_line(state.game_screen, "[Send error: #{inspect(reason)}]", state.viewport_height)
+            {%{state | input_buffer: "", game_screen: game_screen}, []}
         end
     end
   end
@@ -200,97 +166,73 @@ defmodule Mudc.UI.App do
   end
 
   def update({:scroll, delta}, state) do
-    case state.current_screen do
-      :game ->
-        {new_offset, auto_scroll} =
-          ScrollUtils.apply_scroll(
-            state.scroll_offset,
-            delta,
-            length(state.lines),
-            state.viewport_height
-          )
+    state =
+      case state.current_screen do
+        :game ->
+          game_screen = GameScreen.handle_scroll(state.game_screen, delta, state.viewport_height)
+          %{state | game_screen: game_screen}
 
-        {%{state | scroll_offset: new_offset, auto_scroll: auto_scroll}, []}
+        :dog ->
+          debug_screen = DebugScreen.handle_scroll(state.debug_screen, delta, state.term_height, @reserved_lines)
+          %{state | debug_screen: debug_screen}
 
-      :dog ->
-        # Calculate viewport height for dog logs
-        dog_lines_count = String.split(@dog_art, "\n", trim: true) |> length()
-        dog_height = dog_lines_count + @dog_art_padding
-        log_viewport_height = max(state.term_height - @reserved_lines - dog_height, @min_viewport_height)
+        _ ->
+          state
+      end
 
-        {new_offset, dog_auto_scroll} =
-          ScrollUtils.apply_scroll(
-            state.dog_scroll_offset,
-            delta,
-            length(state.log_lines),
-            log_viewport_height
-          )
-
-        {%{state | dog_scroll_offset: new_offset, dog_auto_scroll: dog_auto_scroll}, []}
-
-      _ ->
-        {state, []}
-    end
+    {state, []}
   end
 
   def update(:scroll_top, state) do
-    {offset, auto_scroll} = ScrollUtils.scroll_to_top()
+    state =
+      case state.current_screen do
+        :game ->
+          game_screen = GameScreen.scroll_to_top(state.game_screen)
+          %{state | game_screen: game_screen}
 
-    case state.current_screen do
-      :game ->
-        {%{state | scroll_offset: offset, auto_scroll: auto_scroll}, []}
+        :dog ->
+          debug_screen = DebugScreen.scroll_to_top(state.debug_screen)
+          %{state | debug_screen: debug_screen}
 
-      :dog ->
-        {%{state | dog_scroll_offset: offset, dog_auto_scroll: auto_scroll}, []}
+        _ ->
+          state
+      end
 
-      _ ->
-        {state, []}
-    end
+    {state, []}
   end
 
   def update(:scroll_bottom, state) do
-    case state.current_screen do
-      :game ->
-        {offset, auto_scroll} =
-          ScrollUtils.scroll_to_bottom(length(state.lines), state.viewport_height)
+    state =
+      case state.current_screen do
+        :game ->
+          game_screen = GameScreen.scroll_to_bottom(state.game_screen, state.viewport_height)
+          %{state | game_screen: game_screen}
 
-        {%{state | scroll_offset: offset, auto_scroll: auto_scroll}, []}
+        :dog ->
+          debug_screen = DebugScreen.scroll_to_bottom(state.debug_screen, state.term_height, @reserved_lines)
+          %{state | debug_screen: debug_screen}
 
-      :dog ->
-        dog_lines_count = String.split(@dog_art, "\n", trim: true) |> length()
-        dog_height = dog_lines_count + @dog_art_padding
-        log_viewport_height = max(state.term_height - @reserved_lines - dog_height, @min_viewport_height)
+        _ ->
+          state
+      end
 
-        {offset, auto_scroll} =
-          ScrollUtils.scroll_to_bottom(length(state.log_lines), log_viewport_height)
-
-        {%{state | dog_scroll_offset: offset, dog_auto_scroll: auto_scroll}, []}
-
-      _ ->
-        {state, []}
-    end
+    {state, []}
   end
 
   def update({:resize, width, height}, state) do
     viewport_height = calculate_viewport_height(height)
 
-    # Adjust scroll offsets if needed
-    scroll_offset = ScrollUtils.clamp_scroll(state.scroll_offset, length(state.lines), viewport_height)
-
-    # Also adjust dog screen scroll offset
-    dog_lines_count = String.split(@dog_art, "\n", trim: true) |> length()
-    dog_height = dog_lines_count + @dog_art_padding
-    log_viewport_height = max(height - @reserved_lines - dog_height, @min_viewport_height)
-    dog_scroll_offset =
-      ScrollUtils.clamp_scroll(state.dog_scroll_offset, length(state.log_lines), log_viewport_height)
+    # Update screen scroll offsets
+    game_screen = GameScreen.handle_resize(state.game_screen, viewport_height)
+    debug_screen = DebugScreen.handle_resize(state.debug_screen, height, @reserved_lines)
 
     {%{
        state
        | term_width: width,
          term_height: height,
          viewport_height: viewport_height,
-         scroll_offset: scroll_offset,
-         dog_scroll_offset: dog_scroll_offset
+         game_screen: game_screen,
+         debug_screen: debug_screen
      }, []}
   end
 
@@ -299,23 +241,27 @@ defmodule Mudc.UI.App do
   end
 
   def update(:recompile, state) do
-    state = add_local_line(state, "[Recompiling...]")
+    game_screen = GameScreen.add_line(state.game_screen, "[Recompiling...]", state.viewport_height)
+    state = %{state | game_screen: game_screen}
 
-    try do
-      case IEx.Helpers.recompile() do
-        {:ok, _} ->
-          add_local_line(state, "[Recompile successful]")
+    game_screen =
+      try do
+        case IEx.Helpers.recompile() do
+          {:ok, _} ->
+            GameScreen.add_line(state.game_screen, "[Recompile successful]", state.viewport_height)
 
-        {:error, _} ->
-          add_local_line(state, "[Recompile failed]")
+          {:error, _} ->
+            GameScreen.add_line(state.game_screen, "[Recompile failed]", state.viewport_height)
 
-        :noop ->
-          add_local_line(state, "[No changes to recompile]")
+          :noop ->
+            GameScreen.add_line(state.game_screen, "[No changes to recompile]", state.viewport_height)
+        end
+      rescue
+        e ->
+          GameScreen.add_line(state.game_screen, "[Recompile error: #{inspect(e)}]", state.viewport_height)
       end
-    rescue
-      e ->
-        add_local_line(state, "[Recompile error: #{inspect(e)}]")
-    end
+
+    {%{state | game_screen: game_screen}, []}
   end
 
   def update({:switch_screen, screen}, state) do
@@ -334,8 +280,12 @@ defmodule Mudc.UI.App do
       |> String.split(~r/\r?\n/)
       |> Enum.reject(&(&1 == ""))
 
-    state = Enum.reduce(new_lines, state, &add_game_line(&2, &1))
-    {state, []}
+    game_screen =
+      Enum.reduce(new_lines, state.game_screen, fn line, screen ->
+        GameScreen.add_line(screen, line, state.viewport_height)
+      end)
+
+    {%{state | game_screen: game_screen}, []}
   end
 
   def handle_info({:event, :game_text, :prompt}, state) do
@@ -344,21 +294,25 @@ defmodule Mudc.UI.App do
   end
 
   def handle_info({:event, :connection, {:connected, host, port}}, state) do
+    game_screen = GameScreen.add_line(state.game_screen, "[Connected to #{host}:#{port}]", state.viewport_height)
+
     state =
       state
       |> Map.put(:connected, true)
       |> Map.put(:status_message, "Connected to #{host}:#{port} | Commands: /disconnect, /quit")
-      |> add_local_line("[Connected to #{host}:#{port}]")
+      |> Map.put(:game_screen, game_screen)
 
     {state, []}
   end
 
   def handle_info({:event, :connection, :disconnected}, state) do
+    game_screen = GameScreen.add_line(state.game_screen, "[Disconnected]", state.viewport_height)
+
     state =
       state
       |> Map.put(:connected, false)
       |> Map.put(:status_message, "Disconnected | Use /connect to reconnect")
-      |> add_local_line("[Disconnected]")
+      |> Map.put(:game_screen, game_screen)
 
     {state, []}
   end
@@ -366,41 +320,34 @@ defmodule Mudc.UI.App do
   def handle_info({:event, :connection, {:error, reason}}, state) do
     error_msg = format_connection_error(reason)
 
+    game_screen =
+      state.game_screen
+      |> GameScreen.add_line("[Connection error: #{inspect(reason)}]", state.viewport_height)
+      |> GameScreen.add_line("[#{error_msg}]", state.viewport_height)
+
     state =
       state
       |> Map.put(:status_message, "Connection failed: #{error_msg}")
-      |> add_local_line("[Connection error: #{inspect(reason)}]")
-      |> add_local_line("[#{error_msg}]")
+      |> Map.put(:game_screen, game_screen)
 
     {state, []}
   end
 
   def handle_info({:event, :state_changed, {:vitals, vitals}}, state) do
-    {%{state | vitals: vitals}, []}
+    game_screen = GameScreen.update_vitals(state.game_screen, vitals)
+    {%{state | game_screen: game_screen}, []}
   end
 
   def handle_info({:event, :state_changed, {:room, room}}, state) do
-    {%{state | room: room}, []}
+    game_screen = GameScreen.update_room(state.game_screen, room)
+    {%{state | game_screen: game_screen}, []}
   end
 
   # Handle log buffer updates for dog screen
   def handle_info({:log_update, lines}, state) do
     log_lines = Enum.reverse(lines)
-
-    # Auto-scroll if enabled
-    dog_scroll_offset =
-      if state.dog_auto_scroll do
-        # Calculate viewport height for dog logs
-        dog_lines_count = String.split(@dog_art, "\n", trim: true) |> length()
-        dog_height = dog_lines_count + @dog_art_padding
-        log_viewport_height = max(state.term_height - @reserved_lines - dog_height, @min_viewport_height)
-
-        ScrollUtils.calculate_max_scroll(length(log_lines), log_viewport_height)
-      else
-        state.dog_scroll_offset
-      end
-
-    {%{state | log_lines: log_lines, dog_scroll_offset: dog_scroll_offset}, []}
+    debug_screen = DebugScreen.update_logs(state.debug_screen, log_lines, state.term_height, @reserved_lines)
+    {%{state | debug_screen: debug_screen}, []}
   end
 
   def handle_info(_msg, state) do
@@ -408,49 +355,34 @@ defmodule Mudc.UI.App do
   end
 
   def view(state) do
-    case state.current_screen do
-      :game -> render_game_screen(state)
-      :dog -> render_dog_screen(state)
-      :cat -> render_cat_screen(state)
-    end
+    stack(:vertical, [
+      render_header(state),
+      render_screen_tabs(state),
+      render_screen_content(state),
+      text(""),
+      render_input(state),
+      render_status_bar(state)
+    ])
   end
 
   # ----------------------------------------------------------------------------
   # Screen Renderers
   # ----------------------------------------------------------------------------
 
-  defp render_game_screen(state) do
-    stack(:vertical, [
-      render_header(state),
-      render_screen_tabs(state),
-      render_vitals_bar(state),
-      render_viewport(state),
-      text(""),
-      render_input(state),
-      render_status_bar(state)
-    ])
-  end
+  defp render_screen_content(state) do
+    case state.current_screen do
+      :game ->
+        stack(:vertical, [
+          GameScreen.render_vitals(state.game_screen),
+          GameScreen.render_viewport(state.game_screen, state.viewport_height, state.term_width)
+        ])
 
-  defp render_dog_screen(state) do
-    stack(:vertical, [
-      render_header(state),
-      render_screen_tabs(state),
-      render_debug_logs(state),
-      text(""),
-      render_input(state),
-      render_status_bar(state)
-    ])
-  end
+      :dog ->
+        DebugScreen.render(state.debug_screen, state.term_height, state.term_width, @reserved_lines)
 
-  defp render_cat_screen(state) do
-    stack(:vertical, [
-      render_header(state),
-      render_screen_tabs(state),
-      render_ascii_art(:cat),
-      text(""),
-      render_input(state),
-      render_status_bar(state)
-    ])
+      :cat ->
+        InfoScreen.render(state.info_screen)
+    end
   end
 
   defp render_screen_tabs(state) do
@@ -479,144 +411,9 @@ defmodule Mudc.UI.App do
     ])
   end
 
-  defp render_ascii_art(type) do
-    art_text =
-      case type do
-        :dog -> @dog_art
-        :cat -> @cat_art
-      end
-
-    art_lines = String.split(art_text, "\n", trim: true)
-
-    line_elements =
-      Enum.map(art_lines, fn line ->
-        text(line, Style.new(fg: :bright_yellow, attrs: [:bold]))
-      end)
-
-    stack(:vertical, [
-      text("+" <> String.duplicate("-", 40) <> "+", Style.new(fg: :blue)),
-      text(""),
-      stack(:vertical, line_elements),
-      text(""),
-      text("+" <> String.duplicate("-", 40) <> "+", Style.new(fg: :blue))
-    ])
-  end
-
-  defp render_debug_logs(state) do
-    {dog_lines, log_viewport_height} = calculate_log_viewport_dimensions(state)
-    visible_logs = get_visible_log_lines(state, log_viewport_height)
-    scroll_info = build_scroll_info(state, log_viewport_height)
-
-    dog_elements = render_dog_art(dog_lines)
-    log_elements = render_log_lines(visible_logs)
-    log_header = build_log_header(state, scroll_info)
-
-    border_width = min(state.term_width - 2, 78)
-    border = text("+" <> String.duplicate("-", border_width) <> "+", Style.new(fg: :blue))
-
-    stack(:vertical, [
-      border,
-      stack(:vertical, dog_elements),
-      border,
-      text(log_header, Style.new(fg: :cyan, attrs: [:bold])),
-      border,
-      stack(:vertical, log_elements),
-      border
-    ])
-  end
-
-  defp calculate_log_viewport_dimensions(state) do
-    # Calculate how many lines we can show for logs
-    # Reserved: header(1) + tabs(1) + vitals(1) + borders(2) + empty(1) + input(1) + status(1) = 8
-    available_height = state.term_height - @reserved_lines
-
-    # Show dog art at top (takes ~7 lines)
-    dog_lines = String.split(@dog_art, "\n", trim: true)
-    dog_height = length(dog_lines) + @dog_art_padding
-
-    # Remaining space for logs
-    log_viewport_height = max(available_height - dog_height, @min_viewport_height)
-
-    {dog_lines, log_viewport_height}
-  end
-
-  defp get_visible_log_lines(state, log_viewport_height) do
-    # Get logs based on scroll offset
-    visible_logs =
-      state.log_lines
-      |> Enum.drop(state.dog_scroll_offset)
-      |> Enum.take(log_viewport_height)
-
-    # Pad with empty lines if needed
-    visible_logs ++ List.duplicate("", log_viewport_height - length(visible_logs))
-  end
-
-  defp build_scroll_info(state, log_viewport_height) do
-    total_logs = length(state.log_lines)
-
-    if total_logs > 0 do
-      first = state.dog_scroll_offset + 1
-      last = min(state.dog_scroll_offset + log_viewport_height, total_logs)
-      "#{first}-#{last}/#{total_logs}"
-    else
-      "0/0"
-    end
-  end
-
-  defp render_dog_art(dog_lines) do
-    Enum.map(dog_lines, fn line ->
-      text("  " <> line, Style.new(fg: :bright_yellow, attrs: [:bold]))
-    end)
-  end
-
-  defp render_log_lines(visible_logs) do
-    Enum.map(visible_logs, fn line ->
-      style = log_line_style(line)
-      text(line, style)
-    end)
-  end
-
-  defp log_line_style(line) do
-    cond do
-      String.contains?(line, "[error]") -> Style.new(fg: :red, attrs: [:bold])
-      String.contains?(line, "[warning]") -> Style.new(fg: :yellow)
-      String.contains?(line, "[info]") -> Style.new(fg: :green)
-      String.contains?(line, "[debug]") -> Style.new(fg: :cyan, attrs: [:dim])
-      true -> Style.new(fg: :white)
-    end
-  end
-
-  defp build_log_header(state, scroll_info) do
-    border_width = min(state.term_width - 2, 78)
-    scroll_info_len = String.length(scroll_info)
-    label = "DEBUG LOGS "
-    padding_size = max(border_width - scroll_info_len - String.length(label) - 3, 0)
-
-    label <> String.duplicate(" ", padding_size) <> " " <> scroll_info
-  end
-
   # ----------------------------------------------------------------------------
   # Private Helpers
   # ----------------------------------------------------------------------------
-
-  defp add_game_line(state, line) do
-    lines = state.lines ++ [line]
-    lines = Enum.take(lines, -@max_lines)
-
-    # Auto-scroll if enabled
-    scroll_offset =
-      if state.auto_scroll do
-        ScrollUtils.calculate_max_scroll(length(lines), state.viewport_height)
-      else
-        state.scroll_offset
-      end
-
-    %{state | lines: lines, scroll_offset: scroll_offset}
-  end
-
-  defp add_local_line(state, line) do
-    add_game_line(state, line)
-  end
 
   defp format_connection_error(:econnrefused) do
     "Make sure MMapper is running on localhost:4242, or use /connect to try again"
@@ -639,121 +436,6 @@ defmodule Mudc.UI.App do
     text(title, Style.new(fg: :cyan, attrs: [:bold]))
   end
 
-  defp render_vitals_bar(state) do
-    vitals = state.vitals
-
-    if map_size(vitals) > 0 do
-      # MUME-specific vitals display
-      hp = Map.get(vitals, "hp", Map.get(vitals, "hits", "?"))
-      max_hp = Map.get(vitals, "maxhp", Map.get(vitals, "maxhits", "?"))
-      mana = Map.get(vitals, "mana", "?")
-      max_mana = Map.get(vitals, "maxmana", "?")
-      moves = Map.get(vitals, "moves", Map.get(vitals, "mv", "?"))
-      max_moves = Map.get(vitals, "maxmoves", Map.get(vitals, "maxmv", "?"))
-
-      hp_style = vitals_color(hp, max_hp)
-      mana_style = vitals_color(mana, max_mana)
-      moves_style = vitals_color(moves, max_moves)
-
-      stack(:horizontal, [
-        text("HP:", Style.new(fg: :white)),
-        text("#{hp}/#{max_hp}", hp_style),
-        text("  Mana:", Style.new(fg: :white)),
-        text("#{mana}/#{max_mana}", mana_style),
-        text("  Moves:", Style.new(fg: :white)),
-        text("#{moves}/#{max_moves}", moves_style)
-      ])
-    else
-      text("")
-    end
-  end
-
-  defp vitals_color(current, max) when is_integer(current) and is_integer(max) and max > 0 do
-    ratio = current / max
-
-    cond do
-      ratio > 0.7 -> Style.new(fg: :green)
-      ratio > 0.3 -> Style.new(fg: :yellow)
-      true -> Style.new(fg: :red, attrs: [:bold])
-    end
-  end
-
-  defp vitals_color(_current, _max) do
-    Style.new(fg: :white)
-  end
-
-  # Render a single line with ANSI color support
-  defp render_ansi_line(""), do: text("")
-
-  defp render_ansi_line(line) do
-    segments = AnsiParser.parse(line)
-
-    case segments do
-      [] ->
-        text("")
-
-      [{text_content, nil}] ->
-        # Single unstyled segment - simple case
-        text(text_content)
-
-      [{text_content, style}] ->
-        # Single styled segment
-        text(text_content, style)
-
-      _ ->
-        # Multiple segments - render as horizontal stack
-        nodes = AnsiParser.to_render_nodes(segments)
-        stack(:horizontal, nodes)
-    end
-  end
-
-  defp render_viewport(state) do
-    viewport_height = state.viewport_height
-
-    visible_lines =
-      state.lines
-      |> Enum.drop(state.scroll_offset)
-      |> Enum.take(viewport_height)
-
-    # Pad with empty lines if needed
-    visible_lines =
-      visible_lines ++ List.duplicate("", viewport_height - length(visible_lines))
-
-    line_elements =
-      Enum.map(visible_lines, fn line ->
-        # Parse ANSI escape sequences and render as styled text
-        render_ansi_line(line)
-      end)
-
-    # Build viewport with border
-    total_lines = length(state.lines)
-
-    scroll_info =
-      "#{state.scroll_offset + 1}-#{min(state.scroll_offset + viewport_height, total_lines)}/#{total_lines}"
-
-    # Use terminal width for borders, minus 2 for the "| " prefix
-    border_width = max(state.term_width - 2, 20)
-    scroll_info_len = String.length(scroll_info)
-
-    top_border =
-      "+" <>
-        String.duplicate("-", border_width - scroll_info_len - 3) <> " " <> scroll_info <> " +"
-
-    bottom_border = "+" <> String.duplicate("-", border_width) <> "+"
-
-    content =
-      Enum.map(line_elements, fn elem ->
-        stack(:horizontal, [
-          elem
-        ])
-      end)
-
-    stack(:vertical, [
-      text(top_border, Style.new(fg: :blue)),
-      stack(:vertical, content),
-      text(bottom_border, Style.new(fg: :blue))
-    ])
-  end
 
   defp render_input(state) do
     border_style = Style.new(fg: :green)
@@ -777,7 +459,7 @@ defmodule Mudc.UI.App do
 
         :dog ->
           scroll_status =
-            if state.dog_auto_scroll, do: "Live", else: "Paused (scroll down to resume)"
+            if state.debug_screen.scroll.auto_scroll, do: "Live", else: "Paused (scroll down to resume)"
 
           "Debug Logs - #{scroll_status} | F3: return to game"
 
@@ -810,7 +492,7 @@ defmodule Mudc.UI.App do
 
   defp calculate_viewport_height(term_height) do
     # Calculate viewport height based on terminal height minus reserved lines
-    max(term_height - @reserved_lines, @min_viewport_height)
+    max(term_height - @reserved_lines, 5)
   end
 
   # ----------------------------------------------------------------------------
