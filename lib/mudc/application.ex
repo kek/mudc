@@ -5,12 +5,12 @@ defmodule Mudc.Application do
   Supervision tree:
   - Mudc.UI.LogBuffer (log message buffer for UI display)
   - Mudc.Events.Bus (Registry-based PubSub)
-  - Mudc.Config.Manager (TOML configuration)
+  - Mudc.Config.Manager (TOML configuration with ETS-backed reads)
   - Mudc.Protocol.Supervisor (:rest_for_one supervisor for protocol stack)
     - Mudc.Protocol.Dispatcher (Telnet protocol routing)
     - Mudc.Network.GMCP.Handler (GMCP message processing)
     - Mudc.State.GameState (ETS-backed game state)
-  - Mudc.Network.Connection (TCP socket management)
+  - Mudc.Network.Connection.Manager (connection lifecycle, supervises Socket)
   - Mudc.Network.AutoLogin (auto-login handler)
   - Mudc.Scripting.Engine (Lua VM only)
   - Mudc.Scripting.TriggerManager (trigger pattern matching)
@@ -36,8 +36,8 @@ defmodule Mudc.Application do
       # Groups: Dispatcher -> GMCP.Handler -> GameState
       Mudc.Protocol.Supervisor,
 
-      # Network connection
-      Mudc.Network.Connection,
+      # Network connection manager (supervises Socket worker)
+      Mudc.Network.Connection.Manager,
 
       # Auto-login handler (sends credentials from env vars when prompted)
       Mudc.Network.AutoLogin,

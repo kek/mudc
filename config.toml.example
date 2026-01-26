@@ -1,0 +1,143 @@
+# Mudc Configuration File
+#
+# This is an example configuration file for Mudc MUD client.
+# Copy this to ~/.config/mudc/config.toml and customize as needed.
+#
+# Configuration precedence (highest to lowest):
+# 1. Runtime options (passed to functions)
+# 2. Environment variables (MUD_HOST, MUD_PORT, etc.)
+# 3. This config file
+# 4. Default values (hardcoded)
+#
+# The config file is watched for changes and reloaded automatically.
+
+# ============================================================================
+# Connection Settings
+# ============================================================================
+
+[connection]
+
+# Hostname or IP address of the MUD server (or MMapper proxy)
+# Default: "localhost"
+# Env var: MUD_HOST
+host = "localhost"
+
+# TCP port number
+# Default: 4242 (MMapper default)
+# Env var: MUD_PORT
+# Common values:
+#   4242 - MMapper proxy (default)
+#   23   - Standard telnet
+#   4000 - Common MUD port
+port = 4242
+
+# Automatically connect on application startup
+# Default: false
+# Useful for development or when always connecting to same server
+auto_connect = false
+
+# Delay (in milliseconds) before attempting reconnection after disconnect
+# Default: 5000
+# Only applies if connection was established with auto_connect enabled
+auto_reconnect_delay_ms = 5000
+
+# TCP connection timeout in milliseconds
+# Default: 5000
+# How long to wait for connection before giving up
+# Increase for slow/unreliable connections
+timeout_ms = 5000
+
+# ============================================================================
+# Scripting Settings
+# ============================================================================
+
+[scripting]
+
+# Directory containing Lua script files (.lua)
+# Default: "~/.config/mudc/scripts"
+# Scripts are loaded in alphabetical order on startup
+# Tip: Use number prefixes to control load order (01-core.lua, 02-triggers.lua)
+script_dir = "~/.config/mudc/scripts"
+
+# ============================================================================
+# UI Settings
+# ============================================================================
+
+[ui]
+
+# Which screen to show on startup
+# Default: "game"
+# Options: "game", "debug", "info"
+default_screen = "game"
+
+# ============================================================================
+# Example Configurations
+# ============================================================================
+
+# --- Development Setup ---
+# Quick reconnect, auto-connect, debug screen
+#
+# [connection]
+# host = "localhost"
+# port = 4242
+# auto_connect = true
+# auto_reconnect_delay_ms = 2000
+#
+# [ui]
+# default_screen = "debug"
+
+# --- Production Setup ---
+# Manual connect, longer timeout
+#
+# [connection]
+# host = "mume.org"
+# port = 4242
+# auto_connect = false
+# timeout_ms = 10000
+
+# --- MMapper Setup ---
+# Connect through MMapper proxy
+#
+# [connection]
+# host = "localhost"
+# port = 4242
+# auto_connect = false
+
+# --- Direct Server Connection ---
+# Connect directly to MUD server (no proxy)
+#
+# [connection]
+# host = "mud.server.com"
+# port = 23
+# auto_connect = false
+
+# ============================================================================
+# Environment Variables
+# ============================================================================
+#
+# You can also use environment variables to override config values:
+#
+#   export MUD_HOST=localhost
+#   export MUD_PORT=4242
+#   export MUD_USER=mycharacter      # For auto-login
+#   export MUD_PASSWORD=secretpass   # For auto-login (use carefully!)
+#   export MUDC_CONFIG_DIR=/custom/path
+#
+# Environment variables take precedence over config file values.
+
+# ============================================================================
+# Notes
+# ============================================================================
+#
+# 1. Tilde (~) expansion works: "~/.config/mudc/scripts"
+# 2. Comments start with # and are ignored
+# 3. Sections can appear in any order
+# 4. Unknown keys are ignored (won't cause errors)
+# 5. File is watched - changes reload automatically
+# 6. TOML syntax: https://toml.io/
+#
+# For more documentation, see:
+#   docs/configuration.md - Full configuration reference
+#   docs/architecture.md  - System design and supervision tree
+#   docs/event-bus.md     - Event topics and patterns
+#   docs/protocol.md      - Telnet and GMCP protocol details
