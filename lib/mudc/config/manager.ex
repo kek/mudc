@@ -29,6 +29,7 @@ defmodule Mudc.Config.Manager do
   use GenServer
   require Logger
 
+  alias Mudc.ErrorHandler
   alias Mudc.Events.Bus
 
   @default_config_path "~/.config/mudc/config.toml"
@@ -42,11 +43,24 @@ defmodule Mudc.Config.Manager do
     connection: %{
       host: "localhost",
       port: 4242,
-      auto_connect: true
+      auto_connect: true,
+      timeout_ms: 5000,
+      auto_reconnect_delay_ms: 5000
+    },
+    protocol: %{
+      terminal_type: "XTERM-256COLOR"
+    },
+    auto_login: %{
+      name_prompt: "By what name do you wish to be known?",
+      password_prompt: "Account password:"
     },
     ui: %{
       viewport_height: 20,
-      max_lines: 1000
+      max_lines: 1000,
+      vitals: %{
+        warning_threshold: 0.7,
+        danger_threshold: 0.3
+      }
     },
     scripting: %{
       script_dirs: ["~/.config/mudc/scripts"],
@@ -152,6 +166,8 @@ defmodule Mudc.Config.Manager do
   @impl true
   def handle_info(:check_config, state) do
     state = check_for_changes(state)
+    # Schedule next check
+    schedule_next_check()
     {:noreply, state}
   end
 
@@ -174,7 +190,12 @@ defmodule Mudc.Config.Manager do
             %{state | config: config, last_modified: mtime}
 
           {:error, reason} ->
-            Logger.warning("Failed to parse config file: #{inspect(reason)}")
+            ErrorHandler.log_warning(
+              "Failed to parse config file",
+              reason,
+              context: %{path: state.config_path}
+            )
+
             state
         end
 
@@ -185,7 +206,12 @@ defmodule Mudc.Config.Manager do
         state
 
       {:error, reason} ->
-        Logger.warning("Failed to read config file: #{inspect(reason)}")
+        ErrorHandler.log_warning(
+          "Failed to read config file",
+          reason,
+          context: %{path: state.config_path}
+        )
+
         state
     end
   end
@@ -209,8 +235,8 @@ defmodule Mudc.Config.Manager do
   end
 
   defp start_watching(state) do
+    # Schedule initial check
     timer = Process.send_after(self(), :check_config, @check_interval)
-    schedule_next_check()
     %{state | watch_timer: timer}
   end
 

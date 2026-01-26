@@ -11,11 +11,9 @@ defmodule Mudc.Network.AutoLogin do
   use GenServer
   require Logger
 
+  alias Mudc.Config.Manager, as: Config
   alias Mudc.Events.Bus
   alias Mudc.Network.Connection
-
-  @name_prompt "By what name do you wish to be known?"
-  @password_prompt "Account password:"
 
   defstruct [:has_credentials, :sent_username, :sent_password]
 
@@ -75,6 +73,16 @@ defmodule Mudc.Network.AutoLogin do
     not is_nil(System.get_env("USERNAME")) and not is_nil(System.get_env("PASSWORD"))
   end
 
+  defp matches_name_prompt?(text) do
+    prompt = Config.get(:auto_login, :name_prompt) || "By what name do you wish to be known?"
+    String.contains?(text, prompt)
+  end
+
+  defp matches_password_prompt?(text) do
+    prompt = Config.get(:auto_login, :password_prompt) || "Account password:"
+    String.contains?(text, prompt)
+  end
+
   defp check_for_prompts(text, state) do
     state
     |> maybe_send_username(text)
@@ -91,7 +99,7 @@ defmodule Mudc.Network.AutoLogin do
         # No credentials configured
         state
 
-      String.contains?(text, @name_prompt) ->
+      matches_name_prompt?(text) ->
         # Fetch username on-demand when needed
         username = get_credential(:username)
 
@@ -118,7 +126,7 @@ defmodule Mudc.Network.AutoLogin do
         # No credentials configured
         state
 
-      String.contains?(text, @password_prompt) ->
+      matches_password_prompt?(text) ->
         # Fetch password on-demand when needed
         password = get_credential(:password)
 

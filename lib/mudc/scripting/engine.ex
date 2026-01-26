@@ -21,6 +21,7 @@ defmodule Mudc.Scripting.Engine do
   use GenServer
   require Logger
 
+  alias Mudc.ErrorHandler
   alias Mudc.Events.Bus
   alias Mudc.Scripting.Sandbox
   alias Mudc.Scripting.API
@@ -115,7 +116,12 @@ defmodule Mudc.Scripting.Engine do
             {:reply, :ok, %{state | lua_state: new_lua_state}}
 
           {:error, reason} ->
-            Logger.error("Failed to load script #{path}: #{inspect(reason)}")
+            ErrorHandler.log_error(
+              "Failed to load script",
+              reason,
+              context: %{path: path}
+            )
+
             {:reply, {:error, reason}, state}
         end
 
@@ -142,7 +148,7 @@ defmodule Mudc.Scripting.Engine do
             {:reply, :alias_handled, %{state | lua_state: new_lua_state}}
 
           {:error, reason} ->
-            Logger.warning("Alias callback error: #{inspect(reason)}")
+            ErrorHandler.log_warning("Alias callback error", reason)
             {:reply, :passthrough, state}
         end
     end
@@ -210,12 +216,12 @@ defmodule Mudc.Scripting.Engine do
                 %{acc | lua_state: new_lua_state}
 
               {:error, reason} ->
-                Logger.warning("Failed to load #{filename}: #{inspect(reason)}")
+                ErrorHandler.log_warning("Failed to load script", reason, context: %{file: filename})
                 acc
             end
 
           {:error, reason} ->
-            Logger.warning("Failed to read #{filename}: #{inspect(reason)}")
+            ErrorHandler.log_warning("Failed to read script", reason, context: %{file: filename})
             acc
         end
       end)
@@ -253,7 +259,7 @@ defmodule Mudc.Scripting.Engine do
             %{acc | lua_state: new_lua_state}
 
           {:error, reason} ->
-            Logger.warning("Trigger callback error: #{inspect(reason)}")
+            ErrorHandler.log_warning("Trigger callback error", reason)
             acc
         end
       else

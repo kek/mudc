@@ -10,6 +10,7 @@ defmodule Mudc.Network.Connection do
   require Logger
 
   alias Mudc.Config.Manager, as: Config
+  alias Mudc.ErrorHandler
   alias Mudc.Events.Bus
   alias Mudc.Protocol.Dispatcher
 
@@ -93,8 +94,12 @@ defmodule Mudc.Network.Connection do
         {:reply, :ok, new_state}
 
       {:error, reason} = error ->
-        Logger.error("Failed to connect to #{host}:#{port}: #{inspect(reason)}")
-        Bus.publish(:connection, {:error, reason})
+        ErrorHandler.connection_error(
+          "Failed to connect",
+          reason,
+          %{host: host, port: port}
+        )
+
         {:reply, error, state}
     end
   end
@@ -132,7 +137,7 @@ defmodule Mudc.Network.Connection do
         {:reply, :ok, state}
 
       {:error, reason} = error ->
-        Logger.error("Send failed: #{inspect(reason)}")
+        ErrorHandler.log_error("Send command failed", reason)
         {:reply, error, state}
     end
   end
@@ -157,9 +162,16 @@ defmodule Mudc.Network.Connection do
         {:noreply, %{state | socket: socket, connected: true}}
 
       {:error, reason} ->
-        Logger.warning("Auto-connect failed: #{inspect(reason)}, retrying in 5s")
+        ErrorHandler.retry_warning(
+          "Auto-connect failed",
+          reason,
+          5000,
+          %{host: state.host, port: state.port}
+        )
+
         Bus.publish(:connection, {:error, reason})
-        Process.send_after(self(), :auto_connect, 5000)
+        delay = Config.get(:connection, :auto_reconnect_delay_ms) || 5000
+        Process.send_after(self(), :auto_connect, delay)
         {:noreply, state}
     end
   end
@@ -192,8 +204,7 @@ defmodule Mudc.Network.Connection do
 
   @impl true
   def handle_info({:tcp_error, socket, reason}, %{socket: socket} = state) do
-    Logger.error("TCP error: #{inspect(reason)}")
-    Bus.publish(:connection, {:error, reason})
+    ErrorHandler.connection_error("TCP error", reason)
     :gen_tcp.close(socket)
     {:noreply, %{state | socket: nil, connected: false}}
   end
@@ -229,6 +240,7 @@ defmodule Mudc.Network.Connection do
       nodelay: true
     ]
 
-    :gen_tcp.connect(host_charlist, port, opts, 5000)
+    timeout = Config.get(:connection, :timeout_ms) || 5000
+    :gen_tcp.connect(host_charlist, port, opts, timeout)
   end
 end

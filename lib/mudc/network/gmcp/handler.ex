@@ -11,6 +11,7 @@ defmodule Mudc.Network.GMCP.Handler do
   use GenServer
   require Logger
 
+  alias Mudc.ErrorHandler
   alias Mudc.Events.Bus
   alias Mudc.Network.GMCP.Parser
   alias Mudc.Network.GMCP.Negotiation
@@ -138,7 +139,7 @@ defmodule Mudc.Network.GMCP.Handler do
         handle_gmcp_message(package, payload)
 
       {:error, reason} ->
-        Logger.warning("Failed to parse GMCP message: #{inspect(reason)}")
+        ErrorHandler.log_warning("Failed to parse GMCP message", reason)
     end
 
     {:noreply, state}

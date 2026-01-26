@@ -12,6 +12,7 @@ defmodule Mudc.Protocol.Dispatcher do
   use GenServer
   require Logger
 
+  alias Mudc.Config.Manager, as: Config
   alias Mudc.Events.Bus
   alias Mudc.Network.Telnet.Parser, as: TelnetParser
   alias Mudc.Network.Telnet.Constants, as: TC
@@ -217,7 +218,7 @@ defmodule Mudc.Protocol.Dispatcher do
   defp handle_subneg(opt, _data) when opt == @opt_terminal_type do
     # Server is asking for terminal type
     # Format: IAC SB TERMINAL-TYPE IS <type> IAC SE
-    term_type = "XTERM-256COLOR"
+    term_type = Config.get(:protocol, :terminal_type) || "XTERM-256COLOR"
     response = TelnetParser.subnegotiation(opt, <<0>> <> term_type)
     [response]
   end
