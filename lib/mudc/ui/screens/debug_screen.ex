@@ -3,12 +3,21 @@ defmodule Mudc.UI.Screens.DebugScreen do
   Debug log screen state and rendering logic.
 
   Displays ASCII dog art and scrollable debug logs with syntax highlighting.
+
+  This module provides helper functions for the main UI.App component,
+  not a standalone TermUI component.
   """
 
   use TermUI.Elm
 
   alias Mudc.UI.ScrollState
   alias TermUI.Renderer.Style
+
+  # Stub implementations to satisfy TermUI.Elm behavior
+  # These are never called - only helper functions are used
+  def init(_), do: %{}
+  def update(_, state), do: {state, []}
+  def view(_), do: text("")
 
   @dog_art """
       / \\__

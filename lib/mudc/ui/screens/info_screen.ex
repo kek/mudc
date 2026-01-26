@@ -3,11 +3,20 @@ defmodule Mudc.UI.Screens.InfoScreen do
   Info/Cat screen state and rendering logic.
 
   Displays ASCII art (currently a cat).
+
+  This module provides helper functions for the main UI.App component,
+  not a standalone TermUI component.
   """
 
   use TermUI.Elm
 
   alias TermUI.Renderer.Style
+
+  # Stub implementations to satisfy TermUI.Elm behavior
+  # These are never called - only helper functions are used
+  def init(_), do: %{}
+  def update(_, state), do: {state, []}
+  def view(_), do: text("")
 
   @cat_art """
    /\\_/\\

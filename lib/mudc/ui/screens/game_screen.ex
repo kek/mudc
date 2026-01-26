@@ -4,6 +4,9 @@ defmodule Mudc.UI.Screens.GameScreen do
 
   Displays the main game text viewport with ANSI color support,
   vitals bar, and scrolling functionality.
+
+  This module provides helper functions for the main UI.App component,
+  not a standalone TermUI component.
   """
 
   use TermUI.Elm
@@ -11,6 +14,12 @@ defmodule Mudc.UI.Screens.GameScreen do
   alias Mudc.UI.ScrollState
   alias Mudc.UI.AnsiParser
   alias TermUI.Renderer.Style
+
+  # Stub implementations to satisfy TermUI.Elm behavior
+  # These are never called - only helper functions are used
+  def init(_), do: %{}
+  def update(_, state), do: {state, []}
+  def view(_), do: text("")
 
   @max_lines 1000
 

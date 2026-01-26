@@ -201,9 +201,9 @@ defmodule Mudc.Config.Manager do
   @impl true
   def terminate(_reason, state) do
     # Stop FileSystem watcher if running
-    if state.fs_pid do
-      FileSystem.stop(state.fs_pid)
-    end
+    # FileSystem workers are linked and will be automatically stopped
+    # when the parent process terminates, so no explicit stop needed
+    _ = state.fs_pid
 
     # Clean up ETS table
     if :ets.whereis(@table_name) != :undefined do

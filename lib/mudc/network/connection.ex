@@ -14,9 +14,6 @@ defmodule Mudc.Network.Connection do
   alias Mudc.Events.Bus
   alias Mudc.Protocol.Dispatcher
 
-  # Default host for connections (Config.Manager is the source of truth for port)
-  @default_host ~c"localhost"
-
   defstruct [:socket, :host, :port, :connected]
 
   # Client API
