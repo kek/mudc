@@ -176,20 +176,22 @@ If you see "DISCONNECTED" and connection errors, make sure:
 
 ## Roadmap
 
-- Resize window
-- More powerful support for editing the line
-- Nicer drawing characters
-- Hotkeys remapping
-- Triggers, macros and scripting
-- Being able to hot reload the code of the app in order to not have to restart
+- [ ] Resize window
+- [ ] More powerful support for editing the line
+- [ ] Nicer drawing characters
+- [ ] Hotkeys remapping
+- [x] Triggers, macros and scripting
+- [ ] Being able to hot reload the code of the app in order to not have to restart
   (the app acting a little like IEx). Also being able to run arbitrary code from
   the UI.
-- Split windows with the various filters for chats, messages, highlighted things
+- [ ] Split windows with the various filters for chats, messages, highlighted things
   etc.
-- This is a generic MUD client, not a MUME client. Change all docs, hints etc
+- [ ] This is a generic MUD client, not a MUME client. Change all docs, hints etc
   accordingly.
-- Extract MUME-specific things.
-- Keypad navigation
-- Fix enter key not doing anything
-- Recognize window resize and change terminal height in MUD etc.
-- Handle unicode from game.
+- [ ] Extract MUME-specific things.
+- [ ] Keypad navigation
+- [ ] Fix enter key not doing anything
+- [ ] Recognize window resize and change terminal height in MUD etc.
+- [x] Handle unicode from game.
+- [ ] Ctrl-W freezes the client.
+- [ ] Show prompt in typing area.
