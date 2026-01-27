@@ -148,15 +148,28 @@ defmodule Mudc.UI.App do
         # Publish user input event for logging
         Bus.publish(:user_input, command)
 
+        # Echo the command to game window in bold yellow
+        echo_text = "\e[1;33m" <> command <> "\e[0m"
+
+        game_screen_with_echo =
+          GameScreen.add_line(state.game_screen, echo_text, state.viewport_height)
+
         case Connection.send_command(command) do
           :ok ->
             history = [command | state.history] |> Enum.take(@max_history_size)
-            {%{state | input_buffer: "", history: history, history_index: nil}, []}
+
+            {%{
+               state
+               | input_buffer: "",
+                 history: history,
+                 history_index: nil,
+                 game_screen: game_screen_with_echo
+             }, []}
 
           {:error, :not_connected} ->
             game_screen =
               GameScreen.add_line(
-                state.game_screen,
+                game_screen_with_echo,
                 "[Not connected - use /connect to connect]",
                 state.viewport_height
               )
@@ -166,7 +179,7 @@ defmodule Mudc.UI.App do
           {:error, reason} ->
             game_screen =
               GameScreen.add_line(
-                state.game_screen,
+                game_screen_with_echo,
                 "[Send error: #{inspect(reason)}]",
                 state.viewport_height
               )
