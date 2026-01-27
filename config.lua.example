@@ -139,7 +139,23 @@ local ui = {
 local logging = {
   -- Log level: "debug", "info", "warning", "error"
   -- Default: "info"
-  level = is_dev and "debug" or "info"
+  level = is_dev and "debug" or "info",
+
+  -- Directory for log files
+  -- Default: "~/.config/mudc/logs"
+  -- Tilde (~) expansion is supported
+  directory = "~/.config/mudc/logs",
+
+  -- Game log filename (stored in directory above)
+  -- Default: "game.log"
+  -- This file contains all game output and user input with timestamps
+  game_log_file = "game.log",
+
+  -- Maximum log file size in bytes before rotation
+  -- Default: 10485760 (10 MB)
+  -- When exceeded, the current log is renamed with a timestamp
+  -- and a new log file is started
+  max_log_size = 10 * 1024 * 1024  -- 10 MB
 }
 
 -- ============================================================================

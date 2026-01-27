@@ -1,24 +1,25 @@
 defmodule Mudc.Logging.GameLogger do
   @moduledoc """
-  Logs all game output and user input to a file in ~/.config/mudc/game.log
+  Logs all game output and user input to a file.
 
   Subscribes to :game_text and :user_input events and writes timestamped entries to the log file.
   User input is prefixed with ">" to distinguish it from game output.
   The log file rotates when it exceeds a certain size.
+
+  Log directory and filename are configurable via the config file:
+  - logging.directory (default: ~/.config/mudc/logs)
+  - logging.game_log_file (default: game.log)
+  - logging.max_log_size (default: 10MB)
   """
 
   use GenServer
   require Logger
 
+  alias Mudc.Config.Manager, as: Config
   alias Mudc.Events.Bus
   alias Mudc.Utils.Time
 
-  @log_dir "~/.config/mudc"
-  @log_file "game.log"
-  # 10 MB
-  @max_log_size 10 * 1024 * 1024
-
-  defstruct [:file, :log_path, :bytes_written]
+  defstruct [:file, :log_path, :bytes_written, :max_log_size]
 
   # Client API
 
@@ -44,12 +45,16 @@ defmodule Mudc.Logging.GameLogger do
 
   @impl true
   def init(_opts) do
+    # Get log configuration from config file
+    log_dir = Config.get(:logging, :directory, "~/.config/mudc/logs") |> Path.expand()
+    log_file = Config.get(:logging, :game_log_file, "game.log")
+    max_log_size = Config.get(:logging, :max_log_size, 10 * 1024 * 1024)
+
     # Ensure log directory exists
-    log_dir = Path.expand(@log_dir)
     File.mkdir_p!(log_dir)
 
     # Open log file with UTF-8 encoding
-    log_path = Path.join(log_dir, @log_file)
+    log_path = Path.join(log_dir, log_file)
     {:ok, file} = File.open(log_path, [:append, :utf8])
 
     # Write session start marker
@@ -63,7 +68,8 @@ defmodule Mudc.Logging.GameLogger do
     state = %__MODULE__{
       file: file,
       log_path: log_path,
-      bytes_written: 0
+      bytes_written: 0,
+      max_log_size: max_log_size
     }
 
     Logger.info("Game logger started: #{log_path}")
@@ -94,7 +100,7 @@ defmodule Mudc.Logging.GameLogger do
 
         # Check if we need to rotate
         new_state =
-          if new_bytes_written > @max_log_size do
+          if new_bytes_written > state.max_log_size do
             do_rotate(%{state | bytes_written: new_bytes_written})
           else
             %{state | bytes_written: new_bytes_written}
@@ -126,7 +132,7 @@ defmodule Mudc.Logging.GameLogger do
 
         # Check if we need to rotate
         new_state =
-          if new_bytes_written > @max_log_size do
+          if new_bytes_written > state.max_log_size do
             do_rotate(%{state | bytes_written: new_bytes_written})
           else
             %{state | bytes_written: new_bytes_written}

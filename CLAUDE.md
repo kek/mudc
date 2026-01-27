@@ -133,6 +133,11 @@ return {
   },
   ui = {
     default_screen = is_dev and "debug" or "game"
+  },
+  logging = {
+    directory = "~/.config/mudc/logs",
+    game_log_file = "game.log",
+    max_log_size = 10 * 1024 * 1024  -- 10 MB
   }
 }
 ```

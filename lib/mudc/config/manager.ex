@@ -87,7 +87,10 @@ defmodule Mudc.Config.Manager do
       auto_reload: true
     },
     logging: %{
-      level: "info"
+      level: "info",
+      directory: "~/.config/mudc/logs",
+      game_log_file: "game.log",
+      max_log_size: 10 * 1024 * 1024
     }
   }
 
