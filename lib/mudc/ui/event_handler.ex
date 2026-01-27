@@ -110,7 +110,6 @@ defmodule Mudc.UI.EventHandler do
   # Function keys - Screen switching
   def event_to_msg(%Event.Key{key: :f3}, _state), do: {:msg, {:switch_screen, :game}}
   def event_to_msg(%Event.Key{key: :f4}, _state), do: {:msg, {:switch_screen, :dog}}
-  def event_to_msg(%Event.Key{key: :f5, modifiers: [:ctrl]}, _state), do: {:msg, :recompile}
   def event_to_msg(%Event.Key{key: :f5}, _state), do: {:msg, {:switch_screen, :cat}}
 
   # Page Up/Down - scrolling

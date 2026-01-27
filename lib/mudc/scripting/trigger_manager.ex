@@ -96,6 +96,11 @@ defmodule Mudc.Scripting.TriggerManager do
     {:noreply, state}
   end
 
+  @impl true
+  def handle_info(_msg, state) do
+    {:noreply, state}
+  end
+
   # Check all triggers against incoming text
   defp check_triggers(text, state) do
     Enum.each(state.triggers, fn {pattern, callback} ->
@@ -112,10 +117,5 @@ defmodule Mudc.Scripting.TriggerManager do
         end
       end
     end)
-  end
-
-  @impl true
-  def handle_info(_msg, state) do
-    {:noreply, state}
   end
 end

@@ -107,6 +107,7 @@ defmodule Mudc.UI.App do
           /help        - Show this help message
           /connect     - Connect to the MUD server
           /disconnect  - Disconnect from the server
+          /recompile   - Recompile code (development)
           /quit        - Exit Mudc
 
         Navigation:
@@ -126,12 +127,48 @@ defmodule Mudc.UI.App do
           Debug:       ~/.config/mudc/debug.log
 
         Other:
-          Ctrl+F5      - Recompile code (development)
-          Ctrl+C       - Quit
+          Ctrl+Q       - Quit
         """
 
         Bus.publish(:game_text, {:text, help_text})
         {%{state | input_buffer: ""}, []}
+
+      "/recompile" ->
+        game_screen =
+          GameScreen.add_line(
+            state.game_screen,
+            "[Recompiling for you...]",
+            state.viewport_height
+          )
+
+        state = %{state | game_screen: game_screen}
+
+        game_screen =
+          try do
+            # Use Mix.Task instead of IEx.Helpers since we're not in IEx
+            Mix.Task.reenable("compile.elixir")
+            Mix.Task.run("compile.elixir", [])
+
+            GameScreen.add_line(
+              state.game_screen,
+              "[Recompile successful. Congratulations!]",
+              state.viewport_height
+            )
+          rescue
+            e ->
+              error_msg = Exception.message(e)
+
+              state.game_screen
+              |> GameScreen.add_line("[Recompile failed]", state.viewport_height)
+              |> GameScreen.add_line("[Error: #{error_msg}]", state.viewport_height)
+          catch
+            kind, reason ->
+              state.game_screen
+              |> GameScreen.add_line("[Recompile failed]", state.viewport_height)
+              |> GameScreen.add_line("[#{kind}: #{inspect(reason)}]", state.viewport_height)
+          end
+
+        {%{state | input_buffer: "", game_screen: game_screen}, []}
 
       "/connect" ->
         Connection.connect()
@@ -152,7 +189,9 @@ defmodule Mudc.UI.App do
         echo_text = "\e[1;33m" <> command <> "\e[0m"
 
         game_screen_with_echo =
-          GameScreen.add_line(state.game_screen, echo_text, state.viewport_height)
+          state.game_screen
+          |> GameScreen.add_line(echo_text, state.viewport_height)
+          |> GameScreen.scroll_to_bottom(state.viewport_height)
 
         case Connection.send_command(command) do
           :ok ->
@@ -326,44 +365,6 @@ defmodule Mudc.UI.App do
 
   def update(:quit, state) do
     {state, [:quit]}
-  end
-
-  def update(:recompile, state) do
-    game_screen =
-      GameScreen.add_line(state.game_screen, "[Recompiling...]", state.viewport_height)
-
-    state = %{state | game_screen: game_screen}
-
-    game_screen =
-      try do
-        case IEx.Helpers.recompile() do
-          {:ok, _} ->
-            GameScreen.add_line(
-              state.game_screen,
-              "[Recompile successful]",
-              state.viewport_height
-            )
-
-          {:error, _} ->
-            GameScreen.add_line(state.game_screen, "[Recompile failed]", state.viewport_height)
-
-          :noop ->
-            GameScreen.add_line(
-              state.game_screen,
-              "[No changes to recompile]",
-              state.viewport_height
-            )
-        end
-      rescue
-        e ->
-          GameScreen.add_line(
-            state.game_screen,
-            "[Recompile error: #{inspect(e)}]",
-            state.viewport_height
-          )
-      end
-
-    {%{state | game_screen: game_screen}, []}
   end
 
   def update({:switch_screen, screen}, state) do
