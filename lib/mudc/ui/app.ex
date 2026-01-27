@@ -82,7 +82,7 @@ defmodule Mudc.UI.App do
       # Connection status
       connected: false,
       status_message:
-        "Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F4: debug logs | Ctrl+F5: recompile"
+        "Type /help for commands | Ctrl+Arrows: move | F3/F4/F5: screens | Ctrl+C: quit"
     }
   end
 
@@ -96,6 +96,32 @@ defmodule Mudc.UI.App do
   def update({:send_command, command}, state) do
     # Check for local commands
     case command do
+      "/help" ->
+        help_text = """
+        Available commands:
+          /help        - Show this help message
+          /connect     - Connect to the MUD server
+          /disconnect  - Disconnect from the server
+          /quit        - Exit Mudc
+
+        Navigation:
+          Ctrl+Arrows  - Send directional commands (north/south/east/west)
+          Numpad       - Movement (8=n, 2=s, 4=w, 6=e, 7=nw, 9=ne, 1=sw, 3=se, 5=look)
+          Up/Down      - Navigate command history
+          Page Up/Down - Scroll game text
+
+        Screens:
+          F3           - Game screen (main view)
+          F4           - Debug log screen
+          F5           - Info screen
+
+        Other:
+          Ctrl+F5      - Recompile code (development)
+          Ctrl+C       - Quit
+        """
+        game_screen = GameScreen.add_line(state.game_screen, help_text, state.viewport_height)
+        {%{state | input_buffer: "", game_screen: game_screen}, []}
+
       "/connect" ->
         Connection.connect()
         {%{state | input_buffer: ""}, []}
