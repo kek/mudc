@@ -116,8 +116,16 @@ defmodule Mudc.Scripting.Engine do
 
   defp safe_eval(code, lua_state) do
     try do
-      {result, new_state} = :luerl.do(code, lua_state)
-      {:ok, result, new_state}
+      case :luerl.do(code, lua_state) do
+        {:ok, result, new_state} ->
+          {:ok, result, new_state}
+
+        {:error, reason, _new_state} ->
+          {:error, reason}
+
+        other ->
+          {:error, "Unexpected Luerl return: #{inspect(other)}"}
+      end
     catch
       kind, reason ->
         {:error, "#{kind}: #{inspect(reason)}"}

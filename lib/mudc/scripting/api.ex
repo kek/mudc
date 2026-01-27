@@ -14,108 +14,145 @@ defmodule Mudc.Scripting.API do
   - `game.room()` - Get current room info
   """
 
-  alias Mudc.Events.Bus
-  alias Mudc.State.GameState
+  alias Mudc.Scripting.APICallbacks
 
   @doc """
   Install the mud and game APIs into a Luerl state.
   """
   def install(lua_state, engine_pid) do
     lua_state
-    |> install_mud_api(engine_pid)
-    |> install_game_api()
+    |> install_internal_functions(engine_pid)
+    |> install_mud_api_via_lua()
+    |> install_game_api_via_lua()
     |> install_print_redirect()
   end
 
-  defp install_mud_api(lua_state, engine_pid) do
-    mud_table = [
-      {"send", fn args, state -> mud_send(args, state) end},
-      {"echo", fn args, state -> mud_echo(args, state) end},
-      {"trigger", fn args, state -> mud_trigger(args, state, engine_pid) end},
-      {"alias", fn args, state -> mud_alias(args, state, engine_pid) end},
-      {"gag", fn args, state -> mud_gag(args, state) end}
-    ]
+  # Install internal Erlang functions that Lua wrappers will call
+  defp install_internal_functions(lua_state, engine_pid) do
+    # Store engine_pid in Lua state for callbacks to use
+    {:ok, state1} = :luerl.set_table_keys(["_mudc_engine_pid"], engine_pid, lua_state)
 
-    {:ok, new_state} = :luerl.set_table_keys(["mud"], mud_table, lua_state)
-    new_state
+    # Create _mudc_internal table first
+    {:ok, _result, state2} = :luerl.do("_mudc_internal = {}", state1)
+
+    # Install internal callback functions using MFA tuples
+    # The third parameter in MFA tuple is "extra data" that gets passed as first arg to the function
+    state3 = install_mfa(state2, ["_mudc_internal", "send"], APICallbacks, :mud_send, :undefined)
+    state4 = install_mfa(state3, ["_mudc_internal", "echo"], APICallbacks, :mud_echo, :undefined)
+
+    # For trigger and alias, pass engine_pid as the extra data parameter
+    state5 =
+      install_mfa(state4, ["_mudc_internal", "trigger"], APICallbacks, :mud_trigger, engine_pid)
+
+    state6 =
+      install_mfa(state5, ["_mudc_internal", "alias"], APICallbacks, :mud_alias, engine_pid)
+
+    state7 = install_mfa(state6, ["_mudc_internal", "gag"], APICallbacks, :mud_gag, :undefined)
+
+    state8 =
+      install_mfa(state7, ["_mudc_internal", "vitals"], APICallbacks, :game_vitals, :undefined)
+
+    install_mfa(state8, ["_mudc_internal", "room"], APICallbacks, :game_room, :undefined)
   end
 
-  defp install_game_api(lua_state) do
-    game_table = [
-      {"vitals", fn args, state -> game_vitals(args, state) end},
-      {"room", fn args, state -> game_room(args, state) end}
-    ]
+  # Helper to install a function using MFA tuple format
+  defp install_mfa(lua_state, path, module, function, extra_data) do
+    # Luerl expects functions as {:erl_mfa, module_atom, function_atom, extra_data} tuples
+    # The extra_data is passed as the first argument to the function
+    # Elixir module names need to be converted to Erlang atom format
+    erlang_module = Module.concat([module])
+    mfa = {:erl_mfa, erlang_module, function, extra_data}
 
-    {:ok, new_state} = :luerl.set_table_keys(["game"], game_table, lua_state)
-    new_state
+    case :luerl.set_table_keys(path, mfa, lua_state) do
+      {:ok, new_state} ->
+        new_state
+
+      {:error, reason} ->
+        require Logger
+        Logger.error("Failed to install function at #{inspect(path)}: #{inspect(reason)}")
+        lua_state
+    end
+  end
+
+  # Create Lua wrapper functions that call the internal Erlang functions
+  defp install_mud_api_via_lua(lua_state) do
+    lua_code = """
+    mud = {
+      send = function(cmd)
+        return _mudc_internal.send(cmd)
+      end,
+
+      echo = function(...)
+        return _mudc_internal.echo(...)
+      end,
+
+      trigger = function(pattern, callback)
+        return _mudc_internal.trigger(pattern, callback)
+      end,
+
+      alias = function(name, callback)
+        return _mudc_internal.alias(name, callback)
+      end,
+
+      gag = function()
+        return _mudc_internal.gag()
+      end
+    }
+    """
+
+    case :luerl.do(lua_code, lua_state) do
+      {:ok, _result, new_state} ->
+        new_state
+
+      {:error, reason} ->
+        require Logger
+        Logger.error("Failed to install mud API: #{inspect(reason)}")
+        lua_state
+    end
+  end
+
+  defp install_game_api_via_lua(lua_state) do
+    lua_code = """
+    game = {
+      vitals = function()
+        return _mudc_internal.vitals()
+      end,
+
+      room = function()
+        return _mudc_internal.room()
+      end
+    }
+    """
+
+    case :luerl.do(lua_code, lua_state) do
+      {:ok, _result, new_state} ->
+        new_state
+
+      {:error, reason} ->
+        require Logger
+        Logger.error("Failed to install game API: #{inspect(reason)}")
+        lua_state
+    end
   end
 
   defp install_print_redirect(lua_state) do
-    # Redirect print to mud.echo
-    {:ok, new_state} =
-      :luerl.set_table_keys(["print"], fn args, state -> mud_echo(args, state) end, lua_state)
+    # Redirect print to call _mudc_internal.echo
+    lua_code = """
+    print = function(...)
+      return _mudc_internal.echo(...)
+    end
+    """
 
-    new_state
+    case :luerl.do(lua_code, lua_state) do
+      {:ok, _result, new_state} ->
+        new_state
+
+      {:error, reason} ->
+        require Logger
+        Logger.error("Failed to install print redirect: #{inspect(reason)}")
+        lua_state
+    end
   end
 
-  # mud.send(cmd) - Send command to server
-  defp mud_send([cmd | _], state) when is_binary(cmd) do
-    Mudc.Network.Connection.send_command(cmd)
-    {[], state}
-  end
-
-  defp mud_send(_, state), do: {[], state}
-
-  # mud.echo(text) - Display local text in UI
-  defp mud_echo(args, state) do
-    text = Enum.map_join(args, "\t", &to_string/1)
-    Bus.publish(:game_text, {:text, "[Lua] " <> text <> "\n"})
-    {[], state}
-  end
-
-  # mud.trigger(pattern, callback) - Register a trigger
-  defp mud_trigger([pattern, callback | _], state, engine_pid) when is_binary(pattern) do
-    send(engine_pid, {:register_trigger, pattern, callback})
-    {[], state}
-  end
-
-  defp mud_trigger(_, state, _engine_pid), do: {[], state}
-
-  # mud.alias(name, callback) - Register an alias
-  defp mud_alias([name, callback | _], state, engine_pid) when is_binary(name) do
-    send(engine_pid, {:register_alias, name, callback})
-    {[], state}
-  end
-
-  defp mud_alias(_, state, _engine_pid), do: {[], state}
-
-  # mud.gag() - Mark current line to be hidden
-  defp mud_gag(_, state) do
-    # Set a flag in the Lua state that the engine can check
-    {:ok, new_state} = :luerl.set_table_keys(["_gag_line"], true, state)
-    {[], new_state}
-  end
-
-  # game.vitals() - Get character vitals
-  defp game_vitals(_, state) do
-    vitals = GameState.vitals()
-    lua_table = map_to_lua_table(vitals)
-    {[lua_table], state}
-  end
-
-  # game.room() - Get current room info
-  defp game_room(_, state) do
-    room = GameState.room()
-    lua_table = map_to_lua_table(room)
-    {[lua_table], state}
-  end
-
-  # Convert Elixir map to Lua table format
-  defp map_to_lua_table(map) when is_map(map) do
-    Enum.map(map, fn {k, v} -> {to_string(k), convert_value(v)} end)
-  end
-
-  defp convert_value(v) when is_map(v), do: map_to_lua_table(v)
-  defp convert_value(v) when is_list(v), do: Enum.map(v, &convert_value/1)
-  defp convert_value(v), do: v
+  # Note: The actual callback implementations are in APICallbacks module
 end

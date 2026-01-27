@@ -90,7 +90,9 @@ defmodule Mudc.Protocol.Dispatcher do
   # Dispatch individual events
 
   defp dispatch_event({:text, text}) do
-    Bus.publish(:game_text, {:text, text})
+    # Ensure text is valid UTF-8, replacing invalid sequences
+    valid_text = scrub_utf8(text)
+    Bus.publish(:game_text, {:text, valid_text})
     []
   end
 
@@ -225,5 +227,44 @@ defmodule Mudc.Protocol.Dispatcher do
 
   defp handle_subneg(_opt, _data) do
     []
+  end
+
+  # Scrub invalid UTF-8 sequences from binary data
+  # MUD servers may send invalid UTF-8 or latin-1, so we need to handle it gracefully
+  defp scrub_utf8(binary) when is_binary(binary) do
+    # First check if it's already valid UTF-8
+    if String.valid?(binary) do
+      binary
+    else
+      # Try to convert from latin-1 to UTF-8 first (common for older MUDs)
+      case :unicode.characters_to_binary(binary, :latin1, :utf8) do
+        result when is_binary(result) ->
+          result
+
+        _ ->
+          # If that fails, scrub byte by byte
+          Logger.debug("Invalid UTF-8/latin-1 sequence detected, scrubbing")
+          scrub_byte_by_byte(binary)
+      end
+    end
+  end
+
+  # Replace invalid bytes with Unicode replacement character (U+FFFD)
+  # This handles each byte individually, preserving valid UTF-8 sequences
+  defp scrub_byte_by_byte(binary) do
+    for <<byte <- binary>>, into: <<>> do
+      cond do
+        # ASCII is always valid
+        byte < 128 ->
+          <<byte>>
+
+        # Try to interpret as latin-1 and convert to UTF-8
+        true ->
+          case :unicode.characters_to_binary(<<byte>>, :latin1, :utf8) do
+            result when is_binary(result) -> result
+            _ -> "�"
+          end
+      end
+    end
   end
 end

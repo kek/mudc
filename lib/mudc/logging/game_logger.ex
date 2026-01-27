@@ -48,13 +48,13 @@ defmodule Mudc.Logging.GameLogger do
     log_dir = Path.expand(@log_dir)
     File.mkdir_p!(log_dir)
 
-    # Open log file
+    # Open log file with UTF-8 encoding
     log_path = Path.join(log_dir, @log_file)
     {:ok, file} = File.open(log_path, [:append, :utf8])
 
     # Write session start marker
     timestamp = Time.format_timestamp()
-    IO.write(file, "\n=== Session started at #{timestamp} ===\n")
+    safe_write(file, "\n=== Session started at #{timestamp} ===\n")
 
     # Subscribe to game text and user input events
     Bus.subscribe(:game_text)
@@ -88,9 +88,8 @@ defmodule Mudc.Logging.GameLogger do
     timestamp = Time.format_timestamp()
     log_line = "[#{timestamp}] #{text}"
 
-    case IO.write(state.file, log_line) do
-      :ok ->
-        bytes = byte_size(log_line)
+    case safe_write(state.file, log_line) do
+      {:ok, bytes} ->
         new_bytes_written = state.bytes_written + bytes
 
         # Check if we need to rotate
@@ -121,9 +120,8 @@ defmodule Mudc.Logging.GameLogger do
     timestamp = Time.format_timestamp()
     log_line = "[#{timestamp}] > #{String.trim(command)}\n"
 
-    case IO.write(state.file, log_line) do
-      :ok ->
-        bytes = byte_size(log_line)
+    case safe_write(state.file, log_line) do
+      {:ok, bytes} ->
         new_bytes_written = state.bytes_written + bytes
 
         # Check if we need to rotate
@@ -149,17 +147,32 @@ defmodule Mudc.Logging.GameLogger do
 
   @impl true
   def terminate(_reason, state) do
-    # Write session end marker
-    timestamp = Time.format_timestamp()
-    IO.write(state.file, "=== Session ended at #{timestamp} ===\n\n")
+    # Write session end marker if file is still valid
+    if is_pid(state.file) and Process.alive?(state.file) do
+      timestamp = Time.format_timestamp()
+      safe_write(state.file, "=== Session ended at #{timestamp} ===\n\n")
 
-    # Close the log file
-    File.close(state.file)
+      # Close the log file
+      File.close(state.file)
+    end
 
     :ok
   end
 
   # Private Functions
+
+  # Safe write that catches exceptions from terminated file descriptors
+  defp safe_write(file, data) do
+    try do
+      case IO.write(file, data) do
+        :ok -> {:ok, byte_size(data)}
+        {:error, _} = error -> error
+      end
+    catch
+      :error, {:terminated, _} -> {:error, :terminated}
+      :error, reason -> {:error, reason}
+    end
+  end
 
   defp do_rotate(state) do
     # Close current file
@@ -172,12 +185,12 @@ defmodule Mudc.Logging.GameLogger do
 
     Logger.info("Rotated game log: #{backup_path}")
 
-    # Open new log file
+    # Open new log file with UTF-8 encoding
     {:ok, file} = File.open(state.log_path, [:append, :utf8])
 
     # Write session start marker
     time = Time.format_timestamp()
-    IO.write(file, "\n=== Session started at #{time} (rotated) ===\n")
+    safe_write(file, "\n=== Session started at #{time} (rotated) ===\n")
 
     %{state | file: file, bytes_written: 0}
   end

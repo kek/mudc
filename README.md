@@ -185,5 +185,8 @@ If you see "DISCONNECTED" and connection errors, make sure:
   etc.
 - This is a generic MUD client, not a MUME client. Change all docs, hints etc
   accordingly.
+- Extract MUME-specific things.
 - Keypad navigation
 - Fix enter key not doing anything
+- Recognize window resize and change terminal height in MUD etc.
+- Handle unicode from game.
