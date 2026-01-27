@@ -80,7 +80,24 @@ defmodule Mudc.Scripting.TriggerManager do
 
   @impl true
   def handle_info({:event, :game_text, {:text, text}}, state) do
-    # Check all triggers against incoming text
+    check_triggers(text, state)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:event, :game_text, {:prompt, text}}, state) do
+    # Also check triggers against prompts (e.g., "Account>" trigger)
+    check_triggers(text, state)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:event, :game_text, _other}, state) do
+    {:noreply, state}
+  end
+
+  # Check all triggers against incoming text
+  defp check_triggers(text, state) do
     Enum.each(state.triggers, fn {pattern, callback} ->
       if String.contains?(text, pattern) do
         # Execute trigger callback via Engine
@@ -95,13 +112,6 @@ defmodule Mudc.Scripting.TriggerManager do
         end
       end
     end)
-
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info({:event, :game_text, _other}, state) do
-    {:noreply, state}
   end
 
   @impl true
