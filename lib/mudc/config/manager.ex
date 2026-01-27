@@ -3,7 +3,7 @@ defmodule Mudc.Config.Manager do
   Lua configuration manager with hot-reload support.
 
   Uses ETS for fast concurrent reads (10-100x faster than GenServer calls).
-  Loads configuration from ~/.config/mudc/config.lua and watches for changes.
+  Loads configuration from ~/.config/mudc/config.lua (or $MUDC_CONFIG_PATH) and watches for changes.
   Uses FileSystem for instant notifications when config file changes.
   Broadcasts config_changed events when the configuration is updated.
 
@@ -153,7 +153,12 @@ defmodule Mudc.Config.Manager do
 
   @impl true
   def init(opts) do
-    config_path = Keyword.get(opts, :config_path, @default_config_path) |> Path.expand()
+    config_path =
+      Keyword.get(opts, :config_path) ||
+        System.get_env("MUDC_CONFIG_PATH") ||
+        @default_config_path
+
+    config_path = Path.expand(config_path)
 
     # Create ETS table for fast concurrent reads
     :ets.new(@table_name, [

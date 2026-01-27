@@ -115,6 +115,11 @@ Mudc uses Lua programs for configuration instead of static files like TOML or YA
 
 Configuration file location: `~/.config/mudc/config.lua`
 
+The config file path can be overridden with the `MUDC_CONFIG_PATH` environment variable:
+```bash
+MUDC_CONFIG_PATH=/custom/path/config.lua mix start
+```
+
 Example config:
 ```lua
 local is_dev = os.getenv("ENV") == "development"
