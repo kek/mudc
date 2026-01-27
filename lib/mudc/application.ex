@@ -6,7 +6,7 @@ defmodule Mudc.Application do
   - Mudc.UI.LogBuffer (log message buffer for UI display)
   - Mudc.Events.Bus (Registry-based PubSub)
   - Mudc.Config.Manager (TOML configuration with ETS-backed reads)
-  - Mudc.Logging.GameLogger (logs game output to ~/.config/mudc/game.log)
+  - Mudc.Logging.GameLogger (logs game output and user input to ~/.config/mudc/game.log)
   - Mudc.Protocol.Supervisor (:rest_for_one supervisor for protocol stack)
     - Mudc.Protocol.Dispatcher (Telnet protocol routing)
     - Mudc.Network.GMCP.Handler (GMCP message processing)
@@ -33,7 +33,7 @@ defmodule Mudc.Application do
       # Configuration manager (loads before other components)
       Mudc.Config.Manager,
 
-      # Game output logger (logs to ~/.config/mudc/game.log)
+      # Game output and user input logger (logs to ~/.config/mudc/game.log)
       Mudc.Logging.GameLogger,
 
       # Protocol stack supervisor (:rest_for_one for consistent state)

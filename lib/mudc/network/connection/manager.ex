@@ -138,6 +138,12 @@ defmodule Mudc.Network.Connection.Manager do
 
   @impl true
   def handle_call({:send, command}, _from, %{socket_pid: socket_pid} = state) do
+    # Log user input
+    Logger.info("User input: #{String.trim(command)}")
+
+    # Publish user input event for logging to file
+    Bus.publish(:user_input, {:command, command})
+
     # Append newline if not present
     data =
       if String.ends_with?(command, "\n") do

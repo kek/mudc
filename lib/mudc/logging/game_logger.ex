@@ -1,8 +1,9 @@
 defmodule Mudc.Logging.GameLogger do
   @moduledoc """
-  Logs all game output to a file in ~/.config/mudc/game.log
+  Logs all game output and user input to a file in ~/.config/mudc/game.log
 
-  Subscribes to :game_text events and writes timestamped entries to the log file.
+  Subscribes to :game_text and :user_input events and writes timestamped entries to the log file.
+  User input is prefixed with ">" to distinguish it from game output.
   The log file rotates when it exceeds a certain size.
   """
 
@@ -14,7 +15,8 @@ defmodule Mudc.Logging.GameLogger do
 
   @log_dir "~/.config/mudc"
   @log_file "game.log"
-  @max_log_size 10 * 1024 * 1024  # 10 MB
+  # 10 MB
+  @max_log_size 10 * 1024 * 1024
 
   defstruct [:file, :log_path, :bytes_written]
 
@@ -54,8 +56,9 @@ defmodule Mudc.Logging.GameLogger do
     timestamp = Time.format_timestamp()
     IO.write(file, "\n=== Session started at #{timestamp} ===\n")
 
-    # Subscribe to game text events
+    # Subscribe to game text and user input events
     Bus.subscribe(:game_text)
+    Bus.subscribe(:user_input)
 
     state = %__MODULE__{
       file: file,
@@ -110,6 +113,33 @@ defmodule Mudc.Logging.GameLogger do
   def handle_info({:event, :game_text, {:plain_text, _text}}, state) do
     # Ignore plain_text events (we only log the ANSI version)
     {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:event, :user_input, {:command, command}}, state) do
+    # Log user input with timestamp
+    timestamp = Time.format_timestamp()
+    log_line = "[#{timestamp}] > #{String.trim(command)}\n"
+
+    case IO.write(state.file, log_line) do
+      :ok ->
+        bytes = byte_size(log_line)
+        new_bytes_written = state.bytes_written + bytes
+
+        # Check if we need to rotate
+        new_state =
+          if new_bytes_written > @max_log_size do
+            do_rotate(%{state | bytes_written: new_bytes_written})
+          else
+            %{state | bytes_written: new_bytes_written}
+          end
+
+        {:noreply, new_state}
+
+      {:error, reason} ->
+        Logger.error("Failed to write user input to game log: #{inspect(reason)}")
+        {:noreply, state}
+    end
   end
 
   @impl true

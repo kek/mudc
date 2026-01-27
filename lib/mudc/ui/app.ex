@@ -119,8 +119,9 @@ defmodule Mudc.UI.App do
           Ctrl+F5      - Recompile code (development)
           Ctrl+C       - Quit
         """
-        game_screen = GameScreen.add_line(state.game_screen, help_text, state.viewport_height)
-        {%{state | input_buffer: "", game_screen: game_screen}, []}
+
+        Bus.publish(:game_text, {:text, help_text})
+        {%{state | input_buffer: ""}, []}
 
       "/connect" ->
         Connection.connect()
@@ -134,17 +135,32 @@ defmodule Mudc.UI.App do
         {state, [:quit]}
 
       _ ->
+        # Publish user input event for logging
+        Bus.publish(:user_input, command)
+
         case Connection.send_command(command) do
           :ok ->
             history = [command | state.history] |> Enum.take(@max_history_size)
             {%{state | input_buffer: "", history: history, history_index: nil}, []}
 
           {:error, :not_connected} ->
-            game_screen = GameScreen.add_line(state.game_screen, "[Not connected - use /connect to connect]", state.viewport_height)
+            game_screen =
+              GameScreen.add_line(
+                state.game_screen,
+                "[Not connected - use /connect to connect]",
+                state.viewport_height
+              )
+
             {%{state | input_buffer: "", game_screen: game_screen}, []}
 
           {:error, reason} ->
-            game_screen = GameScreen.add_line(state.game_screen, "[Send error: #{inspect(reason)}]", state.viewport_height)
+            game_screen =
+              GameScreen.add_line(
+                state.game_screen,
+                "[Send error: #{inspect(reason)}]",
+                state.viewport_height
+              )
+
             {%{state | input_buffer: "", game_screen: game_screen}, []}
         end
     end
@@ -199,7 +215,14 @@ defmodule Mudc.UI.App do
           %{state | game_screen: game_screen}
 
         :dog ->
-          debug_screen = DebugScreen.handle_scroll(state.debug_screen, delta, state.term_height, @reserved_lines)
+          debug_screen =
+            DebugScreen.handle_scroll(
+              state.debug_screen,
+              delta,
+              state.term_height,
+              @reserved_lines
+            )
+
           %{state | debug_screen: debug_screen}
 
         _ ->
@@ -235,7 +258,9 @@ defmodule Mudc.UI.App do
           %{state | game_screen: game_screen}
 
         :dog ->
-          debug_screen = DebugScreen.scroll_to_bottom(state.debug_screen, state.term_height, @reserved_lines)
+          debug_screen =
+            DebugScreen.scroll_to_bottom(state.debug_screen, state.term_height, @reserved_lines)
+
           %{state | debug_screen: debug_screen}
 
         _ ->
@@ -267,24 +292,38 @@ defmodule Mudc.UI.App do
   end
 
   def update(:recompile, state) do
-    game_screen = GameScreen.add_line(state.game_screen, "[Recompiling...]", state.viewport_height)
+    game_screen =
+      GameScreen.add_line(state.game_screen, "[Recompiling...]", state.viewport_height)
+
     state = %{state | game_screen: game_screen}
 
     game_screen =
       try do
         case IEx.Helpers.recompile() do
           {:ok, _} ->
-            GameScreen.add_line(state.game_screen, "[Recompile successful]", state.viewport_height)
+            GameScreen.add_line(
+              state.game_screen,
+              "[Recompile successful]",
+              state.viewport_height
+            )
 
           {:error, _} ->
             GameScreen.add_line(state.game_screen, "[Recompile failed]", state.viewport_height)
 
           :noop ->
-            GameScreen.add_line(state.game_screen, "[No changes to recompile]", state.viewport_height)
+            GameScreen.add_line(
+              state.game_screen,
+              "[No changes to recompile]",
+              state.viewport_height
+            )
         end
       rescue
         e ->
-          GameScreen.add_line(state.game_screen, "[Recompile error: #{inspect(e)}]", state.viewport_height)
+          GameScreen.add_line(
+            state.game_screen,
+            "[Recompile error: #{inspect(e)}]",
+            state.viewport_height
+          )
       end
 
     {%{state | game_screen: game_screen}, []}
@@ -320,7 +359,12 @@ defmodule Mudc.UI.App do
   end
 
   def handle_info({:event, :connection, {:connected, host, port}}, state) do
-    game_screen = GameScreen.add_line(state.game_screen, "[Connected to #{host}:#{port}]", state.viewport_height)
+    game_screen =
+      GameScreen.add_line(
+        state.game_screen,
+        "[Connected to #{host}:#{port}]",
+        state.viewport_height
+      )
 
     state =
       state
@@ -372,7 +416,10 @@ defmodule Mudc.UI.App do
   # Handle log buffer updates for dog screen
   def handle_info({:log_update, lines}, state) do
     log_lines = Enum.reverse(lines)
-    debug_screen = DebugScreen.update_logs(state.debug_screen, log_lines, state.term_height, @reserved_lines)
+
+    debug_screen =
+      DebugScreen.update_logs(state.debug_screen, log_lines, state.term_height, @reserved_lines)
+
     {%{state | debug_screen: debug_screen}, []}
   end
 
@@ -404,7 +451,12 @@ defmodule Mudc.UI.App do
         ])
 
       :dog ->
-        DebugScreen.render(state.debug_screen, state.term_height, state.term_width, @reserved_lines)
+        DebugScreen.render(
+          state.debug_screen,
+          state.term_height,
+          state.term_width,
+          @reserved_lines
+        )
 
       :cat ->
         InfoScreen.render(state.info_screen)
@@ -462,7 +514,6 @@ defmodule Mudc.UI.App do
     text(title, Style.new(fg: :cyan, attrs: [:bold]))
   end
 
-
   defp render_input(state) do
     border_style = Style.new(fg: :green)
     # Show cursor as underscore at end of input
@@ -485,7 +536,9 @@ defmodule Mudc.UI.App do
 
         :dog ->
           scroll_status =
-            if state.debug_screen.scroll.auto_scroll, do: "Live", else: "Paused (scroll down to resume)"
+            if state.debug_screen.scroll.auto_scroll,
+              do: "Live",
+              else: "Paused (scroll down to resume)"
 
           "Debug Logs - #{scroll_status} | F3: return to game"
 
