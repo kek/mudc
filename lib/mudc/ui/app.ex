@@ -117,6 +117,10 @@ defmodule Mudc.UI.App do
           F4           - Debug log screen
           F5           - Info screen
 
+        Log Files:
+          Game/User:   ~/.config/mudc/game.log
+          Debug:       ~/.config/mudc/debug.log
+
         Other:
           Ctrl+F5      - Recompile code (development)
           Ctrl+C       - Quit

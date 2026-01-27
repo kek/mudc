@@ -3,7 +3,7 @@ defmodule Mudc.Application do
   OTP Application for Mudc MUD client.
 
   Supervision tree:
-  - Mudc.UI.LogBuffer (log message buffer for UI display)
+  - Mudc.UI.LogBuffer (log message buffer for UI display, writes to ~/.config/mudc/debug.log)
   - Mudc.Events.Bus (Registry-based PubSub)
   - Mudc.Config.Manager (TOML configuration with ETS-backed reads)
   - Mudc.Logging.GameLogger (logs game output and user input to ~/.config/mudc/game.log)

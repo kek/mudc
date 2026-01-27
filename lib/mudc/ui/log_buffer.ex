@@ -18,15 +18,20 @@ defmodule Mudc.UI.LogBuffer do
       iex> Mudc.UI.LogBuffer.clear()
 
   See `docs/remote-repl.md` for more examples.
+
+  Debug logs are also written to ~/.config/mudc/debug.log
   """
 
   use GenServer
+  require Logger
 
   alias Mudc.Utils.Time
 
   @max_lines 500
+  @log_dir "~/.config/mudc"
+  @log_file "debug.log"
 
-  defstruct lines: [], subscribers: []
+  defstruct lines: [], subscribers: [], file: nil, log_path: nil
 
   # Client API
 
@@ -110,7 +115,21 @@ defmodule Mudc.UI.LogBuffer do
 
   @impl true
   def init(_opts) do
-    {:ok, %__MODULE__{}}
+    # Ensure log directory exists
+    log_dir = Path.expand(@log_dir)
+    File.mkdir_p!(log_dir)
+
+    # Open debug log file
+    log_path = Path.join(log_dir, @log_file)
+    {:ok, file} = File.open(log_path, [:append, :utf8])
+
+    # Write session start marker
+    timestamp = Time.format_timestamp()
+    IO.write(file, "\n=== Debug log session started at #{timestamp} ===\n")
+
+    Logger.info("Debug log file: #{log_path}")
+
+    {:ok, %__MODULE__{file: file, log_path: log_path}}
   end
 
   @impl true
@@ -122,6 +141,11 @@ defmodule Mudc.UI.LogBuffer do
     line = "#{timestamp} [#{level}]#{module_str} #{message}"
 
     lines = [line | state.lines] |> Enum.take(@max_lines)
+
+    # Write to debug log file
+    if state.file do
+      IO.write(state.file, line <> "\n")
+    end
 
     # Notify subscribers
     Enum.each(state.subscribers, fn pid ->
@@ -158,5 +182,17 @@ defmodule Mudc.UI.LogBuffer do
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
     subscribers = List.delete(state.subscribers, pid)
     {:noreply, %{state | subscribers: subscribers}}
+  end
+
+  @impl true
+  def terminate(_reason, state) do
+    # Write session end marker and close file
+    if state.file do
+      timestamp = Time.format_timestamp()
+      IO.write(state.file, "=== Debug log session ended at #{timestamp} ===\n\n")
+      File.close(state.file)
+    end
+
+    :ok
   end
 end
