@@ -28,6 +28,7 @@ defmodule Mudc.UI.App do
   require Logger
 
   alias TermUI.Renderer.Style
+  alias Mudc.UI.AnsiParser
   alias TermUI.Terminal
   alias Mudc.Events.Bus
   alias Mudc.Network.Connection
@@ -544,19 +545,42 @@ defmodule Mudc.UI.App do
 
     # Use MUD prompt if available (preserving ANSI color codes)
     # Otherwise show a simple fallback prompt until first GA arrives
-    prompt_text =
+    prompt_node =
       if state.current_prompt == "" do
-        "donno> "
+        text("donno> ")
       else
-        state.current_prompt
+        # Parse and render ANSI codes in the prompt
+        render_ansi_prompt(state.current_prompt)
       end
 
     stack(:vertical, [
       stack(:horizontal, [
-        text(prompt_text),
+        prompt_node,
         text(display_text)
       ])
     ])
+  end
+
+  defp render_ansi_prompt(prompt_text) do
+    segments = AnsiParser.parse(prompt_text)
+
+    case segments do
+      [] ->
+        text("")
+
+      [{text_content, nil}] ->
+        # Single unstyled segment
+        text(text_content)
+
+      [{text_content, style}] ->
+        # Single styled segment
+        text(text_content, style)
+
+      _ ->
+        # Multiple segments with different styles
+        nodes = AnsiParser.to_render_nodes(segments)
+        stack(:horizontal, nodes)
+    end
   end
 
   defp render_status_bar(state) do
