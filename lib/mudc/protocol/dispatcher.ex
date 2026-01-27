@@ -17,6 +17,7 @@ defmodule Mudc.Protocol.Dispatcher do
   alias Mudc.Network.Telnet.Parser, as: TelnetParser
   alias Mudc.Network.Telnet.Constants, as: TC
   alias Mudc.Network.GMCP.Handler, as: GMCPHandler
+  alias Mudc.Prompt
 
   # Telnet option constants for guards (from TC module)
   @opt_gmcp TC.opt_gmcp()
@@ -25,7 +26,7 @@ defmodule Mudc.Protocol.Dispatcher do
   @opt_terminal_type TC.opt_terminal_type()
   @opt_window_size TC.opt_window_size()
 
-  defstruct [:buffer, :socket_pid]
+  defstruct [:buffer, :socket_pid, :last_text]
 
   # Client API
 
@@ -54,7 +55,8 @@ defmodule Mudc.Protocol.Dispatcher do
   def init(_opts) do
     state = %__MODULE__{
       buffer: <<>>,
-      socket_pid: nil
+      socket_pid: nil,
+      last_text: ""
     }
 
     {:ok, state}
@@ -68,8 +70,12 @@ defmodule Mudc.Protocol.Dispatcher do
     # Parse through Telnet parser
     {:ok, events, remaining} = TelnetParser.parse(combined)
 
-    # Process each event and collect responses
-    responses = Enum.flat_map(events, &dispatch_event/1)
+    # Process each event and collect responses, threading state through
+    {responses, new_state} =
+      Enum.reduce(events, {[], state}, fn event, {acc_responses, acc_state} ->
+        {event_responses, updated_state} = dispatch_event(event, acc_state)
+        {acc_responses ++ event_responses, updated_state}
+      end)
 
     # Combine all responses
     response_data =
@@ -79,7 +85,7 @@ defmodule Mudc.Protocol.Dispatcher do
         Enum.join(responses)
       end
 
-    {:reply, response_data, %{state | buffer: remaining}}
+    {:reply, response_data, %{new_state | buffer: remaining}}
   end
 
   @impl true
@@ -89,47 +95,110 @@ defmodule Mudc.Protocol.Dispatcher do
 
   # Dispatch individual events
 
-  defp dispatch_event({:text, text}) do
+  defp dispatch_event({:text, text}, state) do
     # Ensure text is valid UTF-8, replacing invalid sequences
     valid_text = scrub_utf8(text)
-    Bus.publish(:game_text, {:text, valid_text})
-    []
+
+    # If we have buffered text (potential prompt), publish it now as regular text
+    # since new text arrived (means it wasn't a prompt)
+    if state.last_text != "" do
+      Bus.publish(:game_text, {:text, state.last_text})
+    end
+
+    # Split into lines to handle mixed content (game text + prompt on last line)
+    lines = String.split(valid_text, "\n")
+
+    cond do
+      # Text ends with newline - all lines are complete game text
+      String.ends_with?(valid_text, "\n") ->
+        Bus.publish(:game_text, {:text, valid_text})
+        {[], %{state | last_text: ""}}
+
+      # Single line without newline - check if it's a prompt
+      length(lines) == 1 ->
+        last_line = hd(lines)
+
+        if Prompt.is_prompt?(last_line) do
+          # It's a prompt - publish immediately
+          Logger.debug("Detected prompt pattern: #{inspect(last_line)}")
+          Bus.publish(:game_text, {:prompt, last_line})
+          {[], %{state | last_text: ""}}
+        else
+          # Not a prompt - buffer it (might be incomplete text or waiting for GA)
+          {[], %{state | last_text: last_line}}
+        end
+
+      # Multiple lines - publish all complete lines as text, check last line
+      true ->
+        complete_lines = Enum.slice(lines, 0..-2//1)
+        last_line = List.last(lines)
+
+        # Publish all complete lines as game text
+        if complete_lines != [] do
+          complete_text = Enum.join(complete_lines, "\n") <> "\n"
+          Bus.publish(:game_text, {:text, complete_text})
+        end
+
+        # Check if last line is a prompt
+        if Prompt.is_prompt?(last_line) do
+          Logger.debug("Detected prompt pattern on last line: #{inspect(last_line)}")
+          Bus.publish(:game_text, {:prompt, last_line})
+          {[], %{state | last_text: ""}}
+        else
+          # Buffer the last line
+          {[], %{state | last_text: last_line}}
+        end
+    end
   end
 
-  defp dispatch_event({:will, option}) do
+  defp dispatch_event({:will, option}, state) do
     Logger.debug("WILL #{TC.option_name(option)}")
-    handle_will(option)
+    {handle_will(option), state}
   end
 
-  defp dispatch_event({:wont, option}) do
+  defp dispatch_event({:wont, option}, state) do
     Logger.debug("WONT #{TC.option_name(option)}")
-    handle_wont(option)
+    {handle_wont(option), state}
   end
 
-  defp dispatch_event({:do, option}) do
+  defp dispatch_event({:do, option}, state) do
     Logger.debug("DO #{TC.option_name(option)}")
-    handle_do(option)
+    {handle_do(option), state}
   end
 
-  defp dispatch_event({:dont, option}) do
+  defp dispatch_event({:dont, option}, state) do
     Logger.debug("DONT #{TC.option_name(option)}")
-    handle_dont(option)
+    {handle_dont(option), state}
   end
 
-  defp dispatch_event({:subneg, option, data}) do
+  defp dispatch_event({:subneg, option, data}, state) do
     Logger.debug("Subneg #{TC.option_name(option)}: #{byte_size(data)} bytes")
-    handle_subneg(option, data)
+    {handle_subneg(option, data), state}
   end
 
-  defp dispatch_event({:ga}) do
-    # Go Ahead - can be used for prompt detection
-    Bus.publish(:game_text, :prompt)
-    []
+  defp dispatch_event({:ga}, state) do
+    # Go Ahead - check if buffered text is an actual prompt
+    Logger.debug("GA received, buffered text: #{inspect(state.last_text)}")
+
+    if Prompt.is_prompt?(state.last_text) do
+      # This looks like a prompt - send to input line
+      Logger.debug("Identified as PROMPT")
+      Bus.publish(:game_text, {:prompt, state.last_text})
+    else
+      # Not a prompt pattern - send to game output as regular text
+      Logger.debug("NOT identified as prompt, sending to game output")
+
+      if state.last_text != "" do
+        Bus.publish(:game_text, {:text, state.last_text})
+      end
+    end
+
+    {[], %{state | last_text: ""}}
   end
 
-  defp dispatch_event({:nop}) do
+  defp dispatch_event({:nop}, state) do
     # No operation - ignore
-    []
+    {[], state}
   end
 
   # Handle WILL negotiations

@@ -80,6 +80,9 @@ defmodule Mudc.UI.App do
       history: [],
       history_index: nil,
 
+      # Current prompt from MUD
+      current_prompt: "",
+
       # Connection status
       connected: false,
       status_message:
@@ -373,9 +376,9 @@ defmodule Mudc.UI.App do
     {%{state | game_screen: game_screen}, []}
   end
 
-  def handle_info({:event, :game_text, :prompt}, state) do
-    # Prompt received (GA) - could be used for prompt detection
-    {state, []}
+  def handle_info({:event, :game_text, {:prompt, prompt_text}}, state) do
+    # Store the prompt text for display at input line
+    {%{state | current_prompt: prompt_text}, []}
   end
 
   def handle_info({:event, :connection, {:connected, host, port}}, state) do
@@ -535,14 +538,22 @@ defmodule Mudc.UI.App do
   end
 
   defp render_input(state) do
-    border_style = Style.new(fg: :green)
     # Show cursor as underscore at end of input
     cursor = "_"
     display_text = state.input_buffer <> cursor
 
+    # Use MUD prompt if available (preserving ANSI color codes)
+    # Otherwise show a simple fallback prompt until first GA arrives
+    prompt_text =
+      if state.current_prompt == "" do
+        "donno> "
+      else
+        state.current_prompt
+      end
+
     stack(:vertical, [
       stack(:horizontal, [
-        text("> ", border_style),
+        text(prompt_text),
         text(display_text)
       ])
     ])
