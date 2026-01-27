@@ -31,11 +31,13 @@ defmodule Mudc.UI.Screens.DebugScreen do
   @min_viewport_height 5
 
   defstruct log_lines: [],
-            scroll: %ScrollState{}
+            scroll: %ScrollState{},
+            horizontal_offset: 0
 
   @type t :: %__MODULE__{
           log_lines: [String.t()],
-          scroll: ScrollState.t()
+          scroll: ScrollState.t(),
+          horizontal_offset: non_neg_integer()
         }
 
   @doc """
@@ -59,8 +61,24 @@ defmodule Mudc.UI.Screens.DebugScreen do
   """
   def handle_scroll(%__MODULE__{} = screen, delta, term_height, reserved_lines) do
     log_viewport_height = calculate_log_viewport_height(term_height, reserved_lines)
-    scroll = ScrollState.apply_scroll(screen.scroll, delta, length(screen.log_lines), log_viewport_height)
+
+    scroll =
+      ScrollState.apply_scroll(
+        screen.scroll,
+        delta,
+        length(screen.log_lines),
+        log_viewport_height
+      )
+
     %{screen | scroll: scroll}
+  end
+
+  @doc """
+  Handle horizontal scroll event.
+  """
+  def handle_horizontal_scroll(%__MODULE__{} = screen, delta) do
+    new_offset = max(0, screen.horizontal_offset + delta)
+    %{screen | horizontal_offset: new_offset}
   end
 
   @doc """
@@ -76,7 +94,10 @@ defmodule Mudc.UI.Screens.DebugScreen do
   """
   def scroll_to_bottom(%__MODULE__{} = screen, term_height, reserved_lines) do
     log_viewport_height = calculate_log_viewport_height(term_height, reserved_lines)
-    scroll = ScrollState.scroll_to_bottom(screen.scroll, length(screen.log_lines), log_viewport_height)
+
+    scroll =
+      ScrollState.scroll_to_bottom(screen.scroll, length(screen.log_lines), log_viewport_height)
+
     %{screen | scroll: scroll}
   end
 
@@ -135,9 +156,25 @@ defmodule Mudc.UI.Screens.DebugScreen do
       screen.log_lines
       |> Enum.drop(screen.scroll.scroll_offset)
       |> Enum.take(log_viewport_height)
+      |> Enum.map(&apply_horizontal_offset(&1, screen.horizontal_offset))
 
     # Pad with empty lines if needed
     visible_logs ++ List.duplicate("", log_viewport_height - length(visible_logs))
+  end
+
+  defp apply_horizontal_offset(line, 0), do: line
+
+  defp apply_horizontal_offset(line, offset) do
+    # Strip ANSI codes for length calculation
+    plain_line = String.replace(line, ~r/\e\[[0-9;]*m/, "")
+
+    if String.length(plain_line) <= offset do
+      ""
+    else
+      # This is a simple approach - for better results with ANSI,
+      # we'd need to parse and reconstruct the codes
+      String.slice(line, offset..-1//1)
+    end
   end
 
   defp build_scroll_info(screen, log_viewport_height) do

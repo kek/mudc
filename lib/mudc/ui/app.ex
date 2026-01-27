@@ -15,6 +15,7 @@ defmodule Mudc.UI.App do
   - Ctrl+Arrow: Send directional commands (north/south/west/east)
   - Numpad: Send directional commands (8=n, 2=s, 4=w, 6=e, 7=nw, 9=ne, 1=sw, 3=se, 5=look)
   - Page Up/Down: Scroll game text
+  - Left/Right: Horizontal scroll on debug screen (F4)
   - F3: Game screen (main view)
   - F4: Dog screen (debug logs)
   - F5: Cat screen
@@ -109,6 +110,7 @@ defmodule Mudc.UI.App do
           Numpad       - Movement (8=n, 2=s, 4=w, 6=e, 7=nw, 9=ne, 1=sw, 3=se, 5=look)
           Up/Down      - Navigate command history
           Page Up/Down - Scroll game text
+          Left/Right   - Horizontal scroll on debug screen (F4)
 
         Screens:
           F3           - Game screen (main view)
@@ -261,6 +263,20 @@ defmodule Mudc.UI.App do
           debug_screen =
             DebugScreen.scroll_to_bottom(state.debug_screen, state.term_height, @reserved_lines)
 
+          %{state | debug_screen: debug_screen}
+
+        _ ->
+          state
+      end
+
+    {state, []}
+  end
+
+  def update({:horizontal_scroll, delta}, state) do
+    state =
+      case state.current_screen do
+        :dog ->
+          debug_screen = DebugScreen.handle_horizontal_scroll(state.debug_screen, delta)
           %{state | debug_screen: debug_screen}
 
         _ ->
@@ -540,7 +556,10 @@ defmodule Mudc.UI.App do
               do: "Live",
               else: "Paused (scroll down to resume)"
 
-          "Debug Logs - #{scroll_status} | F3: return to game"
+          h_offset = state.debug_screen.horizontal_offset
+          h_scroll_info = if h_offset > 0, do: " | H-Scroll: +#{h_offset}", else: ""
+
+          "Debug Logs - #{scroll_status}#{h_scroll_info} | Left/Right: scroll | F3: return to game"
 
         :cat ->
           "Viewing Cat Screen (F3: return to game)"

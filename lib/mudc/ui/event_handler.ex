@@ -10,6 +10,7 @@ defmodule Mudc.UI.EventHandler do
   - Enter: Send command
   - Up/Down: Navigate command history
   - Ctrl+Arrow: Send directional commands (north/south/west/east)
+  - Left/Right: Horizontal scroll on debug screen
   - Numpad: Send directional commands and actions
   - Page Up/Down: Scroll game text
   - F3/F4/F5: Switch screens
@@ -56,6 +57,20 @@ defmodule Mudc.UI.EventHandler do
 
   def event_to_msg(%Event.Key{key: :right, modifiers: [:ctrl]}, _state) do
     {:msg, {:send_command, "east"}}
+  end
+
+  # Left/Right arrows for horizontal scrolling on debug screen
+  def event_to_msg(%Event.Key{key: :left, modifiers: []}, %{current_screen: :dog}) do
+    {:msg, {:horizontal_scroll, -5}}
+  end
+
+  def event_to_msg(%Event.Key{key: :right, modifiers: []}, %{current_screen: :dog}) do
+    {:msg, {:horizontal_scroll, 5}}
+  end
+
+  # Ignore left/right on other screens (they're used for cursor movement in input)
+  def event_to_msg(%Event.Key{key: key, modifiers: []}, _state) when key in [:left, :right] do
+    :ignore
   end
 
   # Numpad commands (for terminals with application keypad mode)
