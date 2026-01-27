@@ -120,7 +120,6 @@ defmodule Mudc.Protocol.Dispatcher do
 
         if Prompt.is_prompt?(last_line) do
           # It's a prompt - publish immediately
-          Logger.debug("Detected prompt pattern: #{inspect(last_line)}")
           Bus.publish(:game_text, {:prompt, last_line})
           {[], %{state | last_text: ""}}
         else
@@ -141,7 +140,6 @@ defmodule Mudc.Protocol.Dispatcher do
 
         # Check if last line is a prompt
         if Prompt.is_prompt?(last_line) do
-          Logger.debug("Detected prompt pattern on last line: #{inspect(last_line)}")
           Bus.publish(:game_text, {:prompt, last_line})
           {[], %{state | last_text: ""}}
         else
@@ -178,16 +176,11 @@ defmodule Mudc.Protocol.Dispatcher do
 
   defp dispatch_event({:ga}, state) do
     # Go Ahead - check if buffered text is an actual prompt
-    Logger.debug("GA received, buffered text: #{inspect(state.last_text)}")
-
     if Prompt.is_prompt?(state.last_text) do
       # This looks like a prompt - send to input line
-      Logger.debug("Identified as PROMPT")
       Bus.publish(:game_text, {:prompt, state.last_text})
     else
       # Not a prompt pattern - send to game output as regular text
-      Logger.debug("NOT identified as prompt, sending to game output")
-
       if state.last_text != "" do
         Bus.publish(:game_text, {:text, state.last_text})
       end
