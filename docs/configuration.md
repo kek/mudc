@@ -2,11 +2,11 @@
 
 ## Overview
 
-Mudc uses TOML format for configuration with support for environment variables and runtime overrides. Configuration is loaded from `~/.config/mudc/config.toml` and watched for changes (instant reload).
+Mudc uses Lua programs for configuration with support for environment variables and runtime overrides. Configuration is loaded from `~/.config/mudc/config.lua` and watched for changes (instant reload).
 
 ## Configuration File Location
 
-Default: `~/.config/mudc/config.toml`
+Default: `~/.config/mudc/config.lua`
 
 Override with environment variable:
 ```bash
@@ -19,14 +19,17 @@ Configuration values are resolved in this order (highest to lowest priority):
 
 1. **Runtime options** (passed to functions)
 2. **Environment variables** (prefixed with `MUD_` or `MUDC_`)
-3. **Config file** (`config.toml`)
+3. **Config file** (`config.lua`)
 4. **Default values** (hardcoded in code)
 
 Example:
 ```elixir
-# If config.toml has:
-# [connection]
-# host = "mud.server.com"
+# If config.lua has:
+# return {
+#   connection = {
+#     host = "mud.server.com"
+#   }
+# }
 
 # But environment has:
 export MUD_HOST=localhost
@@ -67,9 +70,12 @@ Controls TCP connection behavior.
 - **Description**: Hostname or IP address of the MUD server (or MMapper proxy)
 
 Example:
-```toml
-[connection]
-host = "mud.server.com"
+```lua
+return {
+  connection = {
+    host = "mud.server.com"
+  }
+}
 ```
 
 ```bash
@@ -86,9 +92,12 @@ export MUD_HOST=mume.org
 Default is 4242 for MMapper compatibility. Standard MUD telnet is often 23 or 4000.
 
 Example:
-```toml
-[connection]
-port = 4242
+```lua
+return {
+  connection = {
+    port = 4242
+  }
+}
 ```
 
 ```bash
@@ -104,9 +113,12 @@ export MUD_PORT=23
 Useful for development or when always connecting to same server.
 
 Example:
-```toml
-[connection]
-auto_connect = true
+```lua
+return {
+  connection = {
+    auto_connect = true
+  }
+}
 ```
 
 #### auto_reconnect_delay_ms
@@ -118,9 +130,12 @@ auto_connect = true
 Only applies if connection was established with auto_connect enabled.
 
 Example:
-```toml
-[connection]
-auto_reconnect_delay_ms = 3000  # 3 seconds
+```lua
+return {
+  connection = {
+    auto_reconnect_delay_ms = 3000  -- 3 seconds
+  }
+}
 ```
 
 #### timeout_ms
@@ -132,9 +147,12 @@ auto_reconnect_delay_ms = 3000  # 3 seconds
 How long to wait for connection before giving up.
 
 Example:
-```toml
-[connection]
-timeout_ms = 10000  # 10 seconds for slow connections
+```lua
+return {
+  connection = {
+    timeout_ms = 10000  -- 10 seconds for slow connections
+  }
+}
 ```
 
 ### Section: [scripting]
@@ -150,9 +168,12 @@ Controls Lua scripting behavior.
 Scripts are loaded in alphabetical order on startup.
 
 Example:
-```toml
-[scripting]
-script_dir = "~/mudc-scripts"
+```lua
+return {
+  scripting = {
+    script_dir = "~/mudc-scripts"
+  }
+}
 ```
 
 ### Section: [ui]
@@ -167,9 +188,12 @@ Controls terminal UI behavior.
 - **Description**: Which screen to show on startup
 
 Example:
-```toml
-[ui]
-default_screen = "debug"
+```lua
+return {
+  ui = {
+    default_screen = "debug"
+  }
+}
 ```
 
 ## Environment Variables
@@ -243,18 +267,18 @@ Mudc.Config.Manager.set(:connection, :host, "newhost.com")
 Mudc.Config.Manager.set(:connection, %{host: "newhost.com", port: 4000})
 ```
 
-**Note**: `set/2` and `set/3` update the in-memory ETS table but **do not** write to `config.toml`. To persist changes, manually edit the file or implement a save function.
+**Note**: `set/2` and `set/3` update the in-memory ETS table but **do not** write to `config.lua`. To persist changes, manually edit the file or implement a save function.
 
 ### Reloading Configuration
 
-Configuration is automatically reloaded when `config.toml` changes (using FileSystem watcher). You can also trigger manual reload:
+Configuration is automatically reloaded when `config.lua` changes (using FileSystem watcher). You can also trigger manual reload:
 
 ```elixir
 Mudc.Config.Manager.reload()
 ```
 
 This will:
-1. Re-read config.toml
+1. Re-execute config.lua
 2. Re-apply defaults for missing keys
 3. Update ETS table
 4. Publish `:config_reloaded` event on Event Bus

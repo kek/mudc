@@ -109,7 +109,7 @@ defmodule Mudc.Config.ManagerTest do
       # Create a temporary config file to ensure reload has something to load
       config_path = Manager.config_path()
       File.mkdir_p!(Path.dirname(config_path))
-      File.write!(config_path, "[connection]\nhost = \"localhost\"\nport = 4242\n")
+      File.write!(config_path, "return {connection = {host = \"localhost\", port = 4242}}")
 
       # Clear any existing messages
       Process.sleep(50)
@@ -153,7 +153,7 @@ defmodule Mudc.Config.ManagerTest do
       path = Manager.config_path()
 
       assert is_binary(path)
-      assert String.ends_with?(path, "config.toml") or String.ends_with?(path, ".config/mudc")
+      assert String.ends_with?(path, "config.lua") or String.ends_with?(path, ".config/mudc")
     end
   end
 

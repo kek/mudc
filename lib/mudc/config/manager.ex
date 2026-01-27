@@ -1,9 +1,9 @@
 defmodule Mudc.Config.Manager do
   @moduledoc """
-  TOML configuration manager with hot-reload support.
+  Lua configuration manager with hot-reload support.
 
   Uses ETS for fast concurrent reads (10-100x faster than GenServer calls).
-  Loads configuration from ~/.config/mudc/config.toml and watches for changes.
+  Loads configuration from ~/.config/mudc/config.lua and watches for changes.
   Uses FileSystem for instant notifications when config file changes.
   Broadcasts config_changed events when the configuration is updated.
 
@@ -15,23 +15,31 @@ defmodule Mudc.Config.Manager do
 
   ## Configuration File Format
 
-  ```toml
-  [connection]
-  host = "localhost"
-  port = 4242
-  auto_connect = true
+  Configuration is a Lua program that returns a table:
 
-  [ui]
-  viewport_height = 20
-  max_lines = 1000
-
-  [scripting]
-  script_dirs = ["~/.config/mudc/scripts"]
-  auto_reload = true
-
-  [logging]
-  level = "info"
+  ```lua
+  return {
+    connection = {
+      host = "localhost",
+      port = 4242,
+      auto_connect = true
+    },
+    ui = {
+      viewport_height = 20,
+      max_lines = 1000
+    },
+    scripting = {
+      script_dirs = {"~/.config/mudc/scripts"},
+      auto_reload = true
+    },
+    logging = {
+      level = "info"
+    }
+  }
   ```
+
+  The configuration file is a full Lua program, so you can use variables,
+  conditionals, and functions to build your config dynamically.
   """
 
   use GenServer
@@ -40,7 +48,7 @@ defmodule Mudc.Config.Manager do
   alias Mudc.ErrorHandler
   alias Mudc.Events.Bus
 
-  @default_config_path "~/.config/mudc/config.toml"
+  @default_config_path "~/.config/mudc/config.lua"
   # ETS table name for config storage
   @table_name :mudc_config
 
@@ -227,7 +235,7 @@ defmodule Mudc.Config.Manager do
   defp load_config(state) do
     case File.read(state.config_path) do
       {:ok, content} ->
-        case Toml.decode(content) do
+        case execute_lua_config(content) do
           {:ok, parsed} ->
             config = merge_config(@defaults, atomize_keys(parsed))
             mtime = get_mtime(state.config_path)
@@ -241,7 +249,7 @@ defmodule Mudc.Config.Manager do
 
           {:error, reason} ->
             ErrorHandler.log_warning(
-              "Failed to parse config file",
+              "Failed to execute Lua config file",
               reason,
               context: %{path: state.config_path}
             )
@@ -265,6 +273,56 @@ defmodule Mudc.Config.Manager do
         state
     end
   end
+
+  defp execute_lua_config(lua_code) do
+    try do
+      # Create a new Lua state
+      lua = :luerl.init()
+
+      # Execute the Lua code and get the decoded result
+      # do_dec automatically decodes Lua values to Erlang/Elixir terms
+      # Lua tables become lists of {key, value} tuples
+      case :luerl.do_dec(lua_code, lua) do
+        {:ok, [result], _lua_state} ->
+          # Convert Lua table format (list of tuples) to Elixir maps
+          elixir_value = lua_to_elixir(result)
+          {:ok, elixir_value}
+
+        {:ok, [], _lua_state} ->
+          {:error, "Lua config did not return a value"}
+
+        {:lua_error, reason, _lua_state} ->
+          {:error, {:lua_error, reason}}
+
+        {:error, errors, warnings} ->
+          {:error, {:compile_error, errors, warnings}}
+      end
+    rescue
+      e ->
+        {:error, {:exception, Exception.message(e)}}
+    end
+  end
+
+  # Convert Luerl decoded values to proper Elixir structures
+  # Luerl's do_dec returns Lua tables as lists of {key, value} tuples
+  defp lua_to_elixir(value) when is_list(value) do
+    # Check if it's a Lua table (all elements are 2-tuples)
+    if Enum.all?(value, &(is_tuple(&1) and tuple_size(&1) == 2)) do
+      # It's a table - convert to map
+      Map.new(value, fn {k, v} ->
+        {lua_to_elixir(k), lua_to_elixir(v)}
+      end)
+    else
+      # It's an array - convert elements
+      Enum.map(value, &lua_to_elixir/1)
+    end
+  end
+
+  defp lua_to_elixir(value) when is_binary(value), do: value
+  defp lua_to_elixir(value) when is_number(value), do: value
+  defp lua_to_elixir(value) when is_boolean(value), do: value
+  defp lua_to_elixir(nil), do: nil
+  defp lua_to_elixir(value), do: value
 
   defp check_for_changes(state) do
     mtime = get_mtime(state.config_path)

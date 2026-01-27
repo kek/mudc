@@ -54,7 +54,8 @@ defmodule Mudc.Protocol.DispatcherTest do
 
     test "buffers incomplete telnet sequences" do
       # Send incomplete IAC sequence
-      incomplete_iac = <<255>>  # IAC byte without following command
+      # IAC byte without following command
+      incomplete_iac = <<255>>
 
       result = Dispatcher.process_data(incomplete_iac)
 
@@ -62,7 +63,8 @@ defmodule Mudc.Protocol.DispatcherTest do
       assert result == nil
 
       # Complete the sequence
-      complete = <<251, 201>>  # WILL GMCP
+      # WILL GMCP
+      complete = <<251, 201>>
       Dispatcher.process_data(complete)
 
       # Should receive the complete negotiation
@@ -108,7 +110,8 @@ defmodule Mudc.Protocol.DispatcherTest do
 
       # Should respond with DO SUPPRESS_GO_AHEAD
       assert is_binary(result)
-      assert result == <<255, 253, 3>>  # IAC DO SUPPRESS_GO_AHEAD
+      # IAC DO SUPPRESS_GO_AHEAD
+      assert result == <<255, 253, 3>>
     end
 
     test "handles WILL ECHO" do
@@ -118,7 +121,8 @@ defmodule Mudc.Protocol.DispatcherTest do
       result = Dispatcher.process_data(data)
 
       # Should respond with DO ECHO and publish telnet event
-      assert result == <<255, 253, 1>>  # IAC DO ECHO
+      # IAC DO ECHO
+      assert result == <<255, 253, 1>>
 
       # Should notify about echo mode
       assert_receive {:event, :telnet, {:echo, true}}
@@ -141,7 +145,8 @@ defmodule Mudc.Protocol.DispatcherTest do
       result = Dispatcher.process_data(data)
 
       # Should respond with WILL TERMINAL_TYPE
-      assert result == <<255, 251, 24>>  # IAC WILL TERMINAL_TYPE
+      # IAC WILL TERMINAL_TYPE
+      assert result == <<255, 251, 24>>
     end
 
     test "handles DO WINDOW_SIZE" do
@@ -151,7 +156,8 @@ defmodule Mudc.Protocol.DispatcherTest do
       result = Dispatcher.process_data(data)
 
       # Should respond with WILL WINDOW_SIZE
-      assert result == <<255, 251, 31>>  # IAC WILL WINDOW_SIZE
+      # IAC WILL WINDOW_SIZE
+      assert result == <<255, 251, 31>>
     end
 
     test "handles GA (Go Ahead)" do
@@ -212,7 +218,8 @@ defmodule Mudc.Protocol.DispatcherTest do
 
     test "handles mixed text and telnet commands" do
       # Text followed by IAC command
-      data = "Hello\n" <> <<255, 249>>  # text + IAC GA
+      # text + IAC GA
+      data = "Hello\n" <> <<255, 249>>
 
       _result = Dispatcher.process_data(data)
 

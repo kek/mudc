@@ -89,7 +89,9 @@ defmodule Mudc.Scripting.TriggerManager do
             :ok
 
           {:error, reason} ->
-            ErrorHandler.log_warning("Trigger callback error", reason, context: %{pattern: pattern})
+            ErrorHandler.log_warning("Trigger callback error", reason,
+              context: %{pattern: pattern}
+            )
         end
       end
     end)

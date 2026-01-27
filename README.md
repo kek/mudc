@@ -24,13 +24,16 @@ Mudc connects to MUME via MMapper (https://github.com/MUME/MMapper).
 
 ### Configuration
 
-By default, Mudc will auto-connect to `localhost:4242` on startup. You can customize this by creating a config file at `~/.config/mudc/config.toml`:
+By default, Mudc will auto-connect to `localhost:4242` on startup. You can customize this by creating a config file at `~/.config/mudc/config.lua`:
 
-```toml
-[connection]
-host = "localhost"
-port = 4242
-auto_connect = true
+```lua
+return {
+  connection = {
+    host = "localhost",
+    port = 4242,
+    auto_connect = true
+  }
+}
 ```
 
 ### Connection Commands

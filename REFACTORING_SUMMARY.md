@@ -127,7 +127,7 @@ This document summarizes the comprehensive refactoring completed on the Mudc MUD
   - `docs/configuration.md` - Full config reference with examples
   - `docs/event-bus.md` - Event topics, patterns, examples
   - `docs/protocol.md` - Telnet and GMCP protocol details
-  - `config.toml.example` - Annotated example configuration
+  - `config.lua.example` - Annotated example configuration
 
 ## Files Created
 
@@ -157,7 +157,7 @@ This document summarizes the comprehensive refactoring completed on the Mudc MUD
 - `docs/configuration.md` - Configuration reference
 - `docs/event-bus.md` - Event system documentation
 - `docs/protocol.md` - Telnet and GMCP protocols
-- `config.toml.example` - Example configuration with annotations
+- `config.lua.example` - Example configuration with annotations
 - `REFACTORING_SUMMARY.md` - This document
 
 ## Files Modified
@@ -358,7 +358,7 @@ This refactoring followed the plan outlined in `/home/agent/.claude/plans/purrfe
 - [Configuration Documentation](docs/configuration.md)
 - [Event Bus Documentation](docs/event-bus.md)
 - [Protocol Documentation](docs/protocol.md)
-- [Example Configuration](config.toml.example)
+- [Example Configuration](config.lua.example)
 
 ---
 

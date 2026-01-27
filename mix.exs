@@ -31,7 +31,6 @@ defmodule Mudc.MixProject do
     [
       {:term_ui, github: "pcharbon70/term_ui"},
       {:jason, "~> 1.4"},
-      {:toml, "~> 0.7"},
       {:luerl, "~> 1.2"},
       {:file_system, "~> 1.0"},
       {:mox, "~> 1.0", only: :test},

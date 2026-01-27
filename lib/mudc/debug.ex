@@ -286,7 +286,10 @@ defmodule Mudc.Debug do
   end
 
   defp monitor_memory_loop(interval_ms) do
-    IO.puts("#{Time.format_timestamp()} - Memory: #{memory_mb()} MB, Processes: #{length(Process.list())}")
+    IO.puts(
+      "#{Time.format_timestamp()} - Memory: #{memory_mb()} MB, Processes: #{length(Process.list())}"
+    )
+
     Process.sleep(interval_ms)
     monitor_memory_loop(interval_ms)
   end

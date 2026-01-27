@@ -6,11 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Mudc is a MUD (Multi-User Dungeon) client written in Elixir/OTP. It aims to provide functionality similar to Mudlet, Tinyfugue, and Tintin++.
 
-Planned integrations:
-- MMapper (https://github.com/MUME/MMapper)
-- Telnet protocol
+Key features:
+- Lua-based configuration (using Luerl)
+- Hot-reload configuration with FileSystem watcher
+- MMapper integration (https://github.com/MUME/MMapper)
+- Telnet protocol support
 - GMCP (Generic MUD Communication Protocol)
-- Luerl (Lua scripting via Erlang)
+- Lua scripting engine via Luerl
 
 UI toolkit: pcharbon70/term_ui
 
@@ -102,9 +104,40 @@ Or programmatically:
 iex> Mudc.Config.CookieManager.regenerate_cookie()
 ```
 
+## Configuration
+
+Mudc uses Lua programs for configuration instead of static files like TOML or YAML. This provides:
+
+1. **Dynamic Configuration**: Use Lua logic, variables, and conditionals
+2. **Environment Integration**: Read from `os.getenv()` in config
+3. **Hot Reload**: Changes detected instantly via FileSystem watcher
+4. **Computed Values**: Build config programmatically
+
+Configuration file location: `~/.config/mudc/config.lua`
+
+Example config:
+```lua
+local is_dev = os.getenv("ENV") == "development"
+
+return {
+  connection = {
+    host = os.getenv("MUD_HOST") or "localhost",
+    port = 4242,
+    auto_connect = is_dev,
+    timeout_ms = 5000
+  },
+  ui = {
+    default_screen = is_dev and "debug" or "game"
+  }
+}
+```
+
+See `config.lua.example` for a full annotated example.
+
 ## Architecture
 
 Standard Elixir/OTP application structure:
 - `lib/mudc.ex` - Main module
 - `lib/mudc/application.ex` - OTP Application with supervisor (`:one_for_one` strategy)
+- `lib/mudc/config/manager.ex` - Lua configuration loader using Luerl
 - `test/` - ExUnit tests with doctest support

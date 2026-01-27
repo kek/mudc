@@ -133,7 +133,7 @@ High-performance configuration management:
 - `read_concurrency: true` for lock-free reads
 
 **FileSystem Watcher**:
-- Monitors `~/.config/mudc/config.toml` for changes
+- Monitors `~/.config/mudc/config.lua` for changes
 - Instant reload on file modification (no 5-second polling)
 - Publishes `:config_reloaded` event
 
