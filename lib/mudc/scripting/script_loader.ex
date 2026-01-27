@@ -21,28 +21,29 @@ defmodule Mudc.Scripting.ScriptLoader do
   # Client API
 
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    name = Keyword.get(opts, :name, __MODULE__)
+    GenServer.start_link(__MODULE__, opts, name: name)
   end
 
   @doc """
   Load a specific Lua script file.
   """
-  def load_file(path) do
-    GenServer.call(__MODULE__, {:load_file, path})
+  def load_file(path, name \\ __MODULE__) do
+    GenServer.call(name, {:load_file, path})
   end
 
   @doc """
   Reload all scripts from the script directory.
   """
-  def reload do
-    GenServer.call(__MODULE__, :reload)
+  def reload(name \\ __MODULE__) do
+    GenServer.call(name, :reload)
   end
 
   @doc """
   Get the script directory path.
   """
-  def script_dir do
-    GenServer.call(__MODULE__, :script_dir)
+  def script_dir(name \\ __MODULE__) do
+    GenServer.call(name, :script_dir)
   end
 
   # Server Callbacks

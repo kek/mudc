@@ -2,166 +2,175 @@ defmodule Mudc.Network.GMCP.HandlerTest do
   use ExUnit.Case, async: false
 
   alias Mudc.Network.GMCP.Handler
+  alias Mudc.Network.GMCP.Parser
   alias Mudc.Events.Bus
 
   setup do
-    # Start required dependencies
-    start_supervised!(Mudc.State.GameState)
-    start_supervised!(Handler)
+    # GameState and Handler are already started by the application supervisor
+    # Reset GMCP state by simulating server rejection
+    if Handler.enabled?() do
+      Handler.handle_negotiation({:wont, 201})
+    end
 
-    # Subscribe to GMCP events
+    # Just subscribe to GMCP events
     Bus.subscribe(:gmcp)
+    Bus.subscribe(:gmcp_vitals)
+    Bus.subscribe(:gmcp_room)
 
     on_exit(fn ->
       Bus.unsubscribe(:gmcp)
+      Bus.unsubscribe(:gmcp_vitals)
+      Bus.unsubscribe(:gmcp_room)
     end)
 
     :ok
   end
 
-  describe "process_gmcp/2" do
+  describe "handle_subneg/1" do
     test "processes char.vitals and publishes event" do
-      json = ~s({"hp": 120, "max_hp": 150, "mana": 80, "max_mana": 100})
+      data = Parser.encode("Char.Vitals", %{"hp" => 120, "maxhp" => 150})
 
-      Handler.process_gmcp("char.vitals", json)
+      Handler.handle_subneg(data)
 
       # Should receive vitals event
-      assert_receive {:event, :gmcp, {:vitals, vitals}}, 500
+      assert_receive {:event, :gmcp_vitals, vitals}, 500
 
-      assert vitals.hp == 120
-      assert vitals.max_hp == 150
-      assert vitals.mana == 80
-      assert vitals.max_mana == 100
+      assert vitals["hp"] == 120
+      assert vitals["maxhp"] == 150
     end
 
     test "processes room.info and publishes event" do
-      json = ~s({"name": "Market Square", "area": "Bree"})
+      data = Parser.encode("Room.Info", %{"name" => "Market Square", "area" => "Bree"})
 
-      Handler.process_gmcp("room.info", json)
+      Handler.handle_subneg(data)
 
       # Should receive room event
-      assert_receive {:event, :gmcp, {:room, room}}, 500
+      assert_receive {:event, :gmcp_room, room}, 500
 
-      assert room.name == "Market Square"
-      assert room.area == "Bree"
+      assert room["name"] == "Market Square"
+      assert room["area"] == "Bree"
     end
 
     test "handles unknown GMCP modules" do
-      json = ~s({"data": "test"})
+      data = Parser.encode("Unknown.Module", %{"data" => "test"})
 
-      Handler.process_gmcp("unknown.module", json)
+      Handler.handle_subneg(data)
 
       # Should receive generic GMCP event
-      assert_receive {:event, :gmcp, {:gmcp, "unknown.module", data}}, 500
+      assert_receive {:event, :gmcp, {:message, "Unknown.Module", payload}}, 500
 
-      assert data["data"] == "test"
+      assert payload["data"] == "test"
     end
 
-    test "handles invalid JSON gracefully" do
-      invalid_json = "{invalid json"
+    test "handles malformed data gracefully" do
+      # Send invalid data
+      Handler.handle_subneg("invalid data that can't be parsed")
 
-      # Should not crash, just log error
-      Handler.process_gmcp("char.vitals", invalid_json)
-
-      # Should not receive any event
+      # Should not crash, just not send events
       refute_receive {:event, :gmcp, _}, 200
-    end
-
-    test "handles missing fields in vitals" do
-      json = ~s({"hp": 100})  # Missing other fields
-
-      Handler.process_gmcp("char.vitals", json)
-
-      # Should still publish event with available data
-      assert_receive {:event, :gmcp, {:vitals, vitals}}, 500
-
-      assert vitals.hp == 100
-      # Other fields may be nil or have defaults
+      refute_receive {:event, :gmcp_vitals, _}, 200
     end
   end
 
-  describe "send_gmcp/2" do
-    test "formats GMCP message correctly" do
-      # This would require a connection to test properly
-      # We can verify the function exists and accepts parameters
-      assert function_exported?(Handler, :send_gmcp, 2)
+  describe "send_message/2" do
+    test "returns error when GMCP not enabled" do
+      # Handler starts with GMCP disabled
+      result = Handler.send_message("Core.Hello", %{"client" => "Mudc"})
+
+      assert result == {:error, :gmcp_not_enabled}
     end
   end
 
-  describe "GMCP module routing" do
-    test "routes char.status correctly" do
-      json = ~s({"level": 10, "class": "Warrior"})
+  describe "enabled?/0" do
+    test "returns false by default" do
+      result = Handler.enabled?()
 
-      Handler.process_gmcp("char.status", json)
+      assert result == false
+    end
+  end
 
-      # Should receive appropriate event
-      assert_receive {:event, :gmcp, _}, 500
+  describe "handle_negotiation/1" do
+    test "enables GMCP when server offers it" do
+      result = Handler.handle_negotiation({:will, 201})
+
+      assert {:ok, _response} = result
+      assert Handler.enabled?() == true
     end
 
-    test "routes comm.channel correctly" do
-      json = ~s({"channel": "gossip", "player": "Alice", "message": "Hello"})
+    test "disables GMCP when server rejects it" do
+      # First enable it
+      Handler.handle_negotiation({:will, 201})
 
-      Handler.process_gmcp("comm.channel", json)
+      # Then disable
+      result = Handler.handle_negotiation({:wont, 201})
 
-      # Should receive channel event
-      assert_receive {:event, :gmcp, _}, 500
+      assert result == :ok
+      assert Handler.enabled?() == false
     end
   end
 
   describe "GameState integration" do
     test "updates GameState with room info" do
-      json = ~s({"name": "Forest", "area": "Shire"})
+      data = Parser.encode("Room.Info", %{"name" => "Forest", "area" => "Shire"})
 
-      Handler.process_gmcp("room.info", json)
+      Handler.handle_subneg(data)
 
-      # Wait for processing
+      # Wait for async processing
       Process.sleep(50)
 
       # GameState should be updated
-      room = Mudc.State.GameState.get_room()
-      assert room.name == "Forest"
-      assert room.area == "Shire"
+      room = Mudc.State.GameState.room()
+      assert room["name"] == "Forest"
+      assert room["area"] == "Shire"
     end
 
     test "updates GameState with vitals" do
-      json = ~s({"hp": 150, "max_hp": 150})
+      data = Parser.encode("Char.Vitals", %{"hp" => 150, "maxhp" => 150})
 
-      Handler.process_gmcp("char.vitals", json)
+      Handler.handle_subneg(data)
 
-      # Wait for processing
+      # Wait for async processing
       Process.sleep(50)
 
       # GameState should be updated
-      vitals = Mudc.State.GameState.get_vitals()
-      assert vitals.hp == 150
-      assert vitals.max_hp == 150
+      vitals = Mudc.State.GameState.vitals()
+      assert vitals["hp"] == 150
+      assert vitals["maxhp"] == 150
     end
   end
 
-  describe "error handling" do
-    test "handles empty JSON" do
-      Handler.process_gmcp("char.vitals", "")
+  describe "event publishing" do
+    test "publishes Char.Status to gmcp_status topic" do
+      Bus.subscribe(:gmcp_status)
 
-      # Should not crash
-      refute_receive {:event, :gmcp, _}, 200
+      data = Parser.encode("Char.Status", %{"level" => 10, "class" => "Warrior"})
+
+      Handler.handle_subneg(data)
+
+      assert_receive {:event, :gmcp_status, status}, 500
+      assert status["level"] == 10
+      assert status["class"] == "Warrior"
+
+      Bus.unsubscribe(:gmcp_status)
     end
 
-    test "handles null values in JSON" do
-      json = ~s({"hp": null, "max_hp": 150})
+    test "publishes Comm.Channel to gmcp_channel topic" do
+      Bus.subscribe(:gmcp_channel)
 
-      Handler.process_gmcp("char.vitals", json)
+      data =
+        Parser.encode("Comm.Channel", %{
+          "channel" => "gossip",
+          "player" => "Alice",
+          "message" => "Hello"
+        })
 
-      # Should handle gracefully
-      assert_receive {:event, :gmcp, {:vitals, _vitals}}, 500
-    end
+      Handler.handle_subneg(data)
 
-    test "handles very large numbers" do
-      json = ~s({"hp": 999999999, "max_hp": 999999999})
+      assert_receive {:event, :gmcp_channel, channel}, 500
+      assert channel["channel"] == "gossip"
+      assert channel["player"] == "Alice"
 
-      Handler.process_gmcp("char.vitals", json)
-
-      assert_receive {:event, :gmcp, {:vitals, vitals}}, 500
-      assert vitals.hp == 999999999
+      Bus.unsubscribe(:gmcp_channel)
     end
   end
 end

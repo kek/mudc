@@ -119,6 +119,15 @@ defmodule Mudc.Config.Manager do
   end
 
   @doc """
+  Get a specific configuration value with a default.
+  Fast ETS read, no GenServer call required.
+  """
+  def get(section, key, default) when is_atom(section) and is_atom(key) do
+    section_config = get(section)
+    Map.get(section_config, key, default)
+  end
+
+  @doc """
   Reload the configuration from disk.
   """
   def reload do
@@ -262,9 +271,11 @@ defmodule Mudc.Config.Manager do
 
     if mtime != state.last_modified and mtime != nil do
       Logger.info("Configuration file changed, reloading")
-      old_config = get()  # Read from ETS
+      # Read from ETS
+      old_config = get()
       state = load_config(state)
-      new_config = get()  # Read from ETS
+      # Read from ETS
+      new_config = get()
 
       if new_config != old_config do
         Bus.publish(:config, {:changed, new_config, old_config})
@@ -293,7 +304,10 @@ defmodule Mudc.Config.Manager do
 
       {:error, reason} ->
         # Fallback: FileSystem not supported on this platform
-        Logger.warning("FileSystem watcher unavailable: #{inspect(reason)}, config changes won't be detected")
+        Logger.warning(
+          "FileSystem watcher unavailable: #{inspect(reason)}, config changes won't be detected"
+        )
+
         state
     end
   end

@@ -13,23 +13,25 @@ defmodule Mudc.UI.ScrollStateTest do
   end
 
   describe "apply_scroll/4" do
-    test "scrolls up when delta is negative" do
+    test "scrolls up when delta is positive" do
       state = ScrollState.new()
       total_lines = 100
       viewport_height = 20
 
-      result = ScrollState.apply_scroll(state, -5, total_lines, viewport_height)
+      # Positive delta scrolls up (increases offset from bottom)
+      result = ScrollState.apply_scroll(state, 5, total_lines, viewport_height)
 
       assert result.scroll_offset == 5
       assert result.auto_scroll == false
     end
 
-    test "scrolls down when delta is positive" do
+    test "scrolls down when delta is negative" do
       state = %ScrollState{scroll_offset: 10, auto_scroll: false}
       total_lines = 100
       viewport_height = 20
 
-      result = ScrollState.apply_scroll(state, 5, total_lines, viewport_height)
+      # Negative delta scrolls down (decreases offset toward bottom)
+      result = ScrollState.apply_scroll(state, -5, total_lines, viewport_height)
 
       assert result.scroll_offset == 5
     end
@@ -70,27 +72,29 @@ defmodule Mudc.UI.ScrollStateTest do
     end
   end
 
-  describe "scroll_to_top/3" do
+  describe "scroll_to_top/1" do
     test "scrolls to top of content" do
       state = ScrollState.new()
-      total_lines = 100
-      viewport_height = 20
 
-      result = ScrollState.scroll_to_top(state, total_lines, viewport_height)
+      result = ScrollState.scroll_to_top(state)
 
-      max_offset = max(0, total_lines - viewport_height)
-      assert result.scroll_offset == max_offset
+      # Top means offset = 0 in this inverted scroll model
+      assert result.scroll_offset == 0
       assert result.auto_scroll == false
     end
   end
 
-  describe "scroll_to_bottom/1" do
+  describe "scroll_to_bottom/3" do
     test "scrolls to bottom of content" do
       state = %ScrollState{scroll_offset: 50, auto_scroll: false}
+      total_lines = 100
+      viewport_height = 20
 
-      result = ScrollState.scroll_to_bottom(state)
+      result = ScrollState.scroll_to_bottom(state, total_lines, viewport_height)
 
-      assert result.scroll_offset == 0
+      # Bottom means offset = max_scroll (total_lines - viewport_height)
+      max_scroll = max(0, total_lines - viewport_height)
+      assert result.scroll_offset == max_scroll
       assert result.auto_scroll == true
     end
   end
@@ -101,14 +105,20 @@ defmodule Mudc.UI.ScrollStateTest do
       viewport_height = 20
 
       # Test below minimum
-      assert ScrollState.clamp(-10, total_lines, viewport_height) == 0
+      state = %ScrollState{scroll_offset: -10}
+      result = ScrollState.clamp(state, total_lines, viewport_height)
+      assert result.scroll_offset == 0
 
       # Test above maximum
       max_offset = total_lines - viewport_height
-      assert ScrollState.clamp(max_offset + 10, total_lines, viewport_height) == max_offset
+      state = %ScrollState{scroll_offset: max_offset + 10}
+      result = ScrollState.clamp(state, total_lines, viewport_height)
+      assert result.scroll_offset == max_offset
 
       # Test within range
-      assert ScrollState.clamp(40, total_lines, viewport_height) == 40
+      state = %ScrollState{scroll_offset: 40}
+      result = ScrollState.clamp(state, total_lines, viewport_height)
+      assert result.scroll_offset == 40
     end
 
     test "handles buffer smaller than viewport" do
@@ -116,23 +126,43 @@ defmodule Mudc.UI.ScrollStateTest do
       viewport_height = 20
 
       # When buffer is smaller, max offset should be 0
-      assert ScrollState.clamp(10, total_lines, viewport_height) == 0
-      assert ScrollState.clamp(-5, total_lines, viewport_height) == 0
+      state = %ScrollState{scroll_offset: 10}
+      result = ScrollState.clamp(state, total_lines, viewport_height)
+      assert result.scroll_offset == 0
+
+      state = %ScrollState{scroll_offset: -5}
+      result = ScrollState.clamp(state, total_lines, viewport_height)
+      assert result.scroll_offset == 0
     end
   end
 
-  describe "maybe_auto_scroll/2" do
-    test "returns true when at bottom (offset 0)" do
-      assert ScrollState.maybe_auto_scroll(0, 100) == true
+  describe "maybe_auto_scroll/3" do
+    test "updates state when at bottom and auto_scroll enabled" do
+      state = %ScrollState{scroll_offset: 80, auto_scroll: true}
+      total_lines = 100
+      viewport_height = 20
+
+      # When auto-scroll is enabled, should stay at max_scroll (bottom)
+      result = ScrollState.maybe_auto_scroll(state, total_lines, viewport_height)
+      max_scroll = max(0, total_lines - viewport_height)
+      assert result.scroll_offset == max_scroll
     end
 
-    test "returns false when scrolled up" do
-      assert ScrollState.maybe_auto_scroll(10, 100) == false
+    test "does not update when scrolled up and auto_scroll disabled" do
+      state = %ScrollState{scroll_offset: 10, auto_scroll: false}
+      total_lines = 100
+      viewport_height = 20
+
+      result = ScrollState.maybe_auto_scroll(state, total_lines, viewport_height)
+      assert result.scroll_offset == 10
     end
 
-    test "handles edge cases" do
-      assert ScrollState.maybe_auto_scroll(0, 0) == true
-      assert ScrollState.maybe_auto_scroll(-1, 100) == true
+    test "handles edge cases with empty content" do
+      state = %ScrollState{scroll_offset: 0, auto_scroll: true}
+
+      # With empty content, max_scroll = 0
+      result = ScrollState.maybe_auto_scroll(state, 0, 20)
+      assert result.scroll_offset == 0
     end
   end
 end

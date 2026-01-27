@@ -1,5 +1,5 @@
 defmodule Mudc.Scripting.ScriptLoaderTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias Mudc.Scripting.ScriptLoader
 
@@ -8,32 +8,35 @@ defmodule Mudc.Scripting.ScriptLoaderTest do
     script_dir = Path.join(System.tmp_dir!(), "mudc_test_scripts_#{:rand.uniform(10000)}")
     File.mkdir_p!(script_dir)
 
-    # Start ScriptLoader with test directory
-    start_supervised!({ScriptLoader, script_dir: script_dir})
+    # Use unique name for this test instance
+    name = :"script_loader_#{:erlang.unique_integer([:positive])}"
+
+    # Start ScriptLoader with test directory and unique name
+    start_supervised!({ScriptLoader, script_dir: script_dir, name: name})
 
     on_exit(fn ->
       File.rm_rf!(script_dir)
     end)
 
-    {:ok, script_dir: script_dir}
+    {:ok, script_dir: script_dir, loader_name: name}
   end
 
   describe "script_dir/0" do
-    test "returns the configured script directory", %{script_dir: script_dir} do
-      result = ScriptLoader.script_dir()
+    test "returns the configured script directory", %{script_dir: script_dir, loader_name: name} do
+      result = ScriptLoader.script_dir(name)
 
       assert result == script_dir
     end
   end
 
   describe "load_file/1" do
-    test "loads a valid Lua script file", %{script_dir: script_dir} do
+    test "loads a valid Lua script file", %{script_dir: script_dir, loader_name: name} do
       # Create a simple Lua script
       script_path = Path.join(script_dir, "test.lua")
       File.write!(script_path, "-- Test script\nprint('hello')")
 
       # Note: This requires Engine to be running
-      result = ScriptLoader.load_file(script_path)
+      result = ScriptLoader.load_file(script_path, name)
 
       # Result depends on Engine availability
       assert result == :ok or match?({:error, _}, result)
@@ -45,12 +48,12 @@ defmodule Mudc.Scripting.ScriptLoaderTest do
       assert {:error, _reason} = result
     end
 
-    test "returns error for invalid Lua syntax", %{script_dir: script_dir} do
+    test "returns error for invalid Lua syntax", %{script_dir: script_dir, loader_name: name} do
       # Create a script with invalid Lua
       script_path = Path.join(script_dir, "invalid.lua")
-      File.write!(script_path, "this is not valid lua !!!!")
+      File.write!(script_path, "this is not valid lua +++")
 
-      result = ScriptLoader.load_file(script_path)
+      result = ScriptLoader.load_file(script_path, name)
 
       # Should fail during execution
       assert {:error, _reason} = result
@@ -58,26 +61,26 @@ defmodule Mudc.Scripting.ScriptLoaderTest do
   end
 
   describe "reload/0" do
-    test "reloads all scripts from directory", %{script_dir: script_dir} do
+    test "reloads all scripts from directory", %{script_dir: script_dir, loader_name: name} do
       # Create some test scripts
       File.write!(Path.join(script_dir, "01-first.lua"), "-- First")
       File.write!(Path.join(script_dir, "02-second.lua"), "-- Second")
 
-      result = ScriptLoader.reload()
+      result = ScriptLoader.reload(name)
 
       assert result == :ok
     end
 
-    test "clears triggers and aliases before reload" do
+    test "clears triggers and aliases before reload", %{loader_name: name} do
       # This is tested indirectly - reload() calls clear on both managers
-      result = ScriptLoader.reload()
+      result = ScriptLoader.reload(name)
 
       assert result == :ok
     end
   end
 
   describe "automatic loading on init" do
-    test "loads scripts in alphabetical order", %{script_dir: script_dir} do
+    test "loads scripts in alphabetical order", %{script_dir: script_dir, loader_name: _name} do
       # Create scripts with numeric prefixes
       File.write!(Path.join(script_dir, "01-first.lua"), "-- First")
       File.write!(Path.join(script_dir, "03-third.lua"), "-- Third")
@@ -92,7 +95,7 @@ defmodule Mudc.Scripting.ScriptLoaderTest do
       assert true
     end
 
-    test "only loads .lua files", %{script_dir: script_dir} do
+    test "only loads .lua files", %{script_dir: script_dir, loader_name: _name} do
       # Create various file types
       File.write!(Path.join(script_dir, "script.lua"), "-- Lua")
       File.write!(Path.join(script_dir, "readme.txt"), "Not Lua")
@@ -105,12 +108,17 @@ defmodule Mudc.Scripting.ScriptLoaderTest do
       # Only script.lua should be loaded (verified indirectly)
     end
 
-    test "handles empty script directory gracefully", %{script_dir: script_dir} do
+    test "handles empty script directory gracefully", %{
+      script_dir: _script_dir,
+      loader_name: name
+    } do
       # Ensure directory is empty
-      File.ls!(script_dir)
-      |> Enum.each(&File.rm!(Path.join(script_dir, &1)))
+      dir_path = ScriptLoader.script_dir(name)
 
-      result = ScriptLoader.reload()
+      File.ls!(dir_path)
+      |> Enum.each(&File.rm!(Path.join(dir_path, &1)))
+
+      result = ScriptLoader.reload(name)
 
       assert result == :ok
     end

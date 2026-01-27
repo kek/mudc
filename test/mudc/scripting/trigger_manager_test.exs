@@ -5,8 +5,9 @@ defmodule Mudc.Scripting.TriggerManagerTest do
   alias Mudc.Events.Bus
 
   setup do
-    # Start the trigger manager
-    start_supervised!(TriggerManager)
+    # TriggerManager is already started by the application supervisor
+    # Just clear any existing triggers before each test
+    TriggerManager.clear()
 
     :ok
   end

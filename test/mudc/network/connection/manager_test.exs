@@ -5,14 +5,22 @@ defmodule Mudc.Network.Connection.ManagerTest do
   alias Mudc.Events.Bus
 
   setup do
-    # Start the manager for testing
-    start_supervised!(Manager)
+    # Manager is already started by the application supervisor
+    # Just ensure it's disconnected before each test
+    if Manager.status().connected do
+      Manager.disconnect()
+      Process.sleep(50)
+    end
 
     # Subscribe to connection events
     Bus.subscribe(:connection)
 
     on_exit(fn ->
       Bus.unsubscribe(:connection)
+      # Clean up any connections
+      if Manager.status().connected do
+        Manager.disconnect()
+      end
     end)
 
     :ok
