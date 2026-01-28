@@ -38,7 +38,7 @@ defmodule Mudc.UI.Screens.InfoScreen do
   @doc """
   Render the cat ASCII art.
   """
-  def render(_screen) do
+  def render(_screen, term_width) do
     art_lines = String.split(@cat_art, "\n", trim: true)
 
     line_elements =
@@ -46,12 +46,15 @@ defmodule Mudc.UI.Screens.InfoScreen do
         text(line, Style.new(fg: :bright_yellow, attrs: [:bold]))
       end)
 
+    # Dynamic border width: min 10 chars, max 40 chars, adapts to terminal
+    border_width = max(min(term_width - 2, 40), 10)
+
     stack(:vertical, [
-      text("+" <> String.duplicate("-", 40) <> "+", Style.new(fg: :blue)),
+      text("+" <> String.duplicate("-", border_width) <> "+", Style.new(fg: :blue)),
       text(""),
       stack(:vertical, line_elements),
       text(""),
-      text("+" <> String.duplicate("-", 40) <> "+", Style.new(fg: :blue))
+      text("+" <> String.duplicate("-", border_width) <> "+", Style.new(fg: :blue))
     ])
   end
 end

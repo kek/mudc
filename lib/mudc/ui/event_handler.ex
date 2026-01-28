@@ -126,8 +126,14 @@ defmodule Mudc.UI.EventHandler do
 
   # Terminal resize
   def event_to_msg(%Event.Resize{width: width, height: height}, _state) do
+    require Logger
+    Logger.debug("EventHandler received resize event: #{width}x#{height}")
     {:msg, {:resize, width, height}}
   end
 
-  def event_to_msg(_event, _state), do: :ignore
+  def event_to_msg(event, _state) do
+    require Logger
+    Logger.debug("EventHandler ignoring event: #{inspect(event)}")
+    :ignore
+  end
 end

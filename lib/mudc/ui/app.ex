@@ -347,6 +347,8 @@ defmodule Mudc.UI.App do
   end
 
   def update({:resize, width, height}, state) do
+    Logger.debug("Window resize detected: #{width}x#{height} (was #{state.term_width}x#{state.term_height})")
+
     viewport_height = calculate_viewport_height(height)
 
     # Update screen scroll offsets
@@ -471,8 +473,8 @@ defmodule Mudc.UI.App do
       render_screen_tabs(state),
       render_screen_content(state),
       text(""),
-      render_input(state),
-      render_status_bar(state)
+      render_input(state, state.term_width),
+      render_status_bar(state, state.term_width)
     ])
   end
 
@@ -497,7 +499,7 @@ defmodule Mudc.UI.App do
         )
 
       :cat ->
-        InfoScreen.render(state.info_screen)
+        InfoScreen.render(state.info_screen, state.term_width)
     end
   end
 
@@ -552,10 +554,30 @@ defmodule Mudc.UI.App do
     text(title, Style.new(fg: :cyan, attrs: [:bold]))
   end
 
-  defp render_input(state) do
+  defp render_input(state, term_width) do
     # Show cursor as underscore at end of input
     cursor = "_"
-    display_text = state.input_buffer <> cursor
+
+    # Parse prompt to calculate its display length (strip ANSI codes)
+    prompt_plain = if state.current_prompt == "" do
+      "donno> "
+    else
+      # Strip ANSI codes for length calculation
+      String.replace(state.current_prompt, ~r/\e\[[0-9;]*m/, "")
+    end
+
+    prompt_len = String.length(prompt_plain)
+    available_width = max(term_width - prompt_len - 1, 10)
+
+    # Show end of input if too long (where user is typing)
+    input_with_cursor = state.input_buffer <> cursor
+    input_len = String.length(input_with_cursor)
+
+    display_text = if input_len > available_width do
+      String.slice(input_with_cursor, input_len - available_width, available_width)
+    else
+      input_with_cursor
+    end
 
     # Use MUD prompt if available (preserving ANSI color codes)
     # Otherwise show a simple fallback prompt until first GA arrives
@@ -597,7 +619,7 @@ defmodule Mudc.UI.App do
     end
   end
 
-  defp render_status_bar(state) do
+  defp render_status_bar(state, term_width) do
     base_status =
       case state.current_screen do
         :game ->
@@ -625,7 +647,15 @@ defmodule Mudc.UI.App do
       end
 
     status = base_status <> history_info
-    text(status, Style.new(fg: :yellow, attrs: [:dim]))
+
+    # Truncate if necessary, leaving room for ellipsis
+    truncated_status = if String.length(status) > term_width do
+      String.slice(status, 0, max(term_width - 3, 0)) <> "..."
+    else
+      status
+    end
+
+    text(truncated_status, Style.new(fg: :yellow, attrs: [:dim]))
   end
 
   # ----------------------------------------------------------------------------
