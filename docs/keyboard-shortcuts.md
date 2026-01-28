@@ -43,7 +43,7 @@ This document provides a quick reference for all keyboard shortcuts available in
 | `F3` | Game screen | Switch to main game view |
 | `F4` | Debug logs | Switch to dog screen with live debug logs |
 | `F5` | Cat screen | Switch to decorative cat screen |
-| `Ctrl+F5` | Recompile | Recompile code without restarting (development feature) |
+
 
 ## Display Control
 
@@ -87,22 +87,22 @@ Switch between different views:
 
 Press `F3` to return to the game view from any screen.
 
-### Ctrl+F5 - Recompile
+### /recompile - Hot Code Reload
 
-Hot reload code changes without restarting:
+Hot reload code changes without restarting by typing `/recompile` as a command:
 
-```elixir
-# Make changes to code files
-# Press Ctrl+F5 in any screen
-# See recompilation status message
+```
+> /recompile
+[Recompiling...]
+[Recompile successful]
 ```
 
 **Results**:
 - `[Recompile successful]` - Code updated
 - `[Recompile failed]` - Compilation errors
-- `[No changes to recompile]` - No modified files
+- Shows error details if compilation fails
 
-**Note**: Changed from F5 to Ctrl+F5 to avoid conflict with screen switching.
+**Note**: Use this command during development to test code changes without restarting the client.
 
 ### Ctrl+Arrow Keys - Directional Movement
 
@@ -182,7 +182,7 @@ The bottom status bar shows helpful hints:
 
 **Default**:
 ```
-Commands: /connect, /disconnect, /quit | Ctrl+Arrows: move | F4: debug logs | Ctrl+F5: recompile
+Commands: /connect, /disconnect, /quit, /recompile | Ctrl+Arrows: move | F4: debug logs
 ```
 
 **When connected**:
@@ -235,7 +235,7 @@ Some environments may intercept certain keys:
 ### Development Workflow
 
 1. Make code changes in your editor
-2. Press `Ctrl+F5` to recompile without restarting
+2. Type `/recompile` to reload code without restarting
 3. Press `F4` to view debug logs if needed
 
 
@@ -260,7 +260,7 @@ Some environments may intercept certain keys:
 ║   F3           Game screen (main view)                    ║
 ║   F4           Dog screen (debug logs)                    ║
 ║   F5           Cat screen (decorative)                    ║
-║   Ctrl+F5      Recompile code                             ║
+║   /recompile   Recompile code (command)                   ║
 ║                                                            ║
 ║ Control                                                    ║
 ║   Enter        Send command                               ║

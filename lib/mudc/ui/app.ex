@@ -19,8 +19,8 @@ defmodule Mudc.UI.App do
   - F3: Game screen (main view)
   - F4: Dog screen (debug logs)
   - F5: Cat screen
-  - Ctrl+F5: Recompile code
   - Ctrl+C: Quit
+  - /recompile: Recompile code (use command in input)
   """
 
   use TermUI.Elm
@@ -87,7 +87,7 @@ defmodule Mudc.UI.App do
       # Connection status
       connected: false,
       status_message:
-        "Type /help for commands | Ctrl+Arrows: move | F3/F4/F5: screens | Ctrl+C: quit"
+        "Type /help for commands | Ctrl+Arrows: move | F3/F4/F5: screens | /recompile: reload | Ctrl+C: quit"
     }
   end
 
@@ -624,9 +624,7 @@ defmodule Mudc.UI.App do
         idx -> " | History: #{idx + 1}/#{length(state.history)}"
       end
 
-    recompile_hint = " | Ctrl+F5: recompile"
-
-    status = base_status <> history_info <> recompile_hint
+    status = base_status <> history_info
     text(status, Style.new(fg: :yellow, attrs: [:dim]))
   end
 

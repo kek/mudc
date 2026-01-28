@@ -14,8 +14,8 @@ defmodule Mudc.UI.EventHandler do
   - Numpad: Send directional commands and actions
   - Page Up/Down: Scroll game text
   - F3/F4/F5: Switch screens
-  - Ctrl+F5: Recompile code
   - Ctrl+C/Ctrl+Q: Quit
+  - /recompile: Recompile code (command)
   """
 
   alias TermUI.Event

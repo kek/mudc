@@ -207,7 +207,7 @@ The log buffer size (500 lines) is defined in `lib/mudc/ui/log_buffer.ex`:
 @max_lines 500
 ```
 
-To change the buffer size, edit this value and recompile with `Ctrl+F5`.
+To change the buffer size, edit this value and recompile with `/recompile`.
 
 ## Related Documentation
 

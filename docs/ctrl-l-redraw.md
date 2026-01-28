@@ -91,7 +91,7 @@ end
 
 ## Comparison with Similar Features
 
-### Ctrl+L vs F5 (Recompile)
+### Ctrl+L vs /recompile (Hot Code Reload)
 
 - **Ctrl+L**: Visual refresh only, no code changes
 - **F5**: Recompiles code and updates application logic
@@ -134,7 +134,7 @@ Some terminals have their own display buffers that can get corrupted independent
 
 ## Related Features
 
-- **F5**: Recompile code (may cause brief display flicker that Ctrl+L can clean up)
+- **/recompile**: Recompile code (may cause brief display flicker that Ctrl+L can clean up)
 
 ## Terminal Emulator Compatibility
 

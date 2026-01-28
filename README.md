@@ -50,7 +50,7 @@ When the UI is running, you can use these commands:
 - `F3` - Game screen (main view)
 - `F4` - Dog screen (debug logs viewer)
 - `F5` - Cat screen (decorative)
-- `Ctrl+F5` - Recompile code without restarting (for development)
+- `/recompile` - Recompile code without restarting (for development, use as command)
 - `Page Up/Down` - Scroll game text
 - `Ctrl+C` - Quit the client
 

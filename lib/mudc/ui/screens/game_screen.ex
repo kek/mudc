@@ -43,7 +43,7 @@ defmodule Mudc.UI.Screens.GameScreen do
       lines: [
         "Welcome to Mudc - MUME Client",
         "Type /connect to connect, /disconnect to disconnect, /quit to exit",
-        "Press F4 for debug logs | Ctrl+F5 to recompile | F3/F4/F5 switch screens"
+        "Press F4 for debug logs | /recompile to reload code | F3/F4/F5 switch screens"
       ]
     }
   end
