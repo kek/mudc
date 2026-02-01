@@ -39,26 +39,33 @@ export MUD_HOST=localhost
 
 ## Configuration File Format
 
+Mudc uses Lua programs for configuration, not static files. This provides dynamic configuration with logic, variables, and conditionals.
+
 ### Full Example
 
-```toml
-# ~/.config/mudc/config.toml
+```lua
+-- ~/.config/mudc/config.lua
 
-[connection]
-host = "localhost"
-port = 4242
-auto_connect = false
-auto_reconnect_delay_ms = 5000
-timeout_ms = 5000
+local is_dev = os.getenv("ENV") == "development"
 
-[scripting]
-script_dir = "~/.config/mudc/scripts"
-
-[ui]
-default_screen = "game"
+return {
+  connection = {
+    host = "localhost",
+    port = 4242,
+    auto_connect = false,
+    auto_reconnect_delay_ms = 5000,
+    timeout_ms = 5000
+  },
+  scripting = {
+    script_dir = "~/.config/mudc/scripts"
+  },
+  ui = {
+    default_screen = is_dev and "debug" or "game"
+  }
+}
 ```
 
-### Section: [connection]
+### Section: connection
 
 Controls TCP connection behavior.
 
@@ -155,7 +162,7 @@ return {
 }
 ```
 
-### Section: [scripting]
+### Section: scripting
 
 Controls Lua scripting behavior.
 
@@ -176,7 +183,7 @@ return {
 }
 ```
 
-### Section: [ui]
+### Section: ui
 
 Controls terminal UI behavior.
 
@@ -299,7 +306,7 @@ end
 
 ## Default Values
 
-If a key is not set in config.toml, defaults are used:
+If a key is not set in config.lua, defaults are used:
 
 ```elixir
 @defaults %{
@@ -349,12 +356,12 @@ Config file is monitored with FileSystem (inotify on Linux, FSEvents on macOS):
 Check file location:
 ```elixir
 iex> Mudc.Config.Manager.config_path()
-"/home/user/.config/mudc/config.toml"
+"/home/user/.config/mudc/config.lua"
 ```
 
 Verify file exists and is readable:
 ```bash
-ls -la ~/.config/mudc/config.toml
+ls -la ~/.config/mudc/config.lua
 ```
 
 ### Environment variables not working
@@ -370,7 +377,7 @@ echo $MUD_HOST
 
 ### Changes not taking effect
 
-If you modified config.toml but changes aren't reflected:
+If you modified config.lua but changes aren't reflected:
 
 1. Check logs for reload confirmation
 2. Verify FileSystem watcher is running
@@ -378,12 +385,15 @@ If you modified config.toml but changes aren't reflected:
 
 ### Auto-connect not working
 
-Verify in config.toml:
-```toml
-[connection]
-auto_connect = true
-host = "localhost"  # Must have valid host/port
-port = 4242
+Verify in config.lua:
+```lua
+return {
+  connection = {
+    auto_connect = true,
+    host = "localhost",  -- Must have valid host/port
+    port = 4242
+  }
+}
 ```
 
 Check logs on startup for connection attempts.
@@ -392,33 +402,39 @@ Check logs on startup for connection attempts.
 
 ### Development Setup
 
-```toml
-# ~/.config/mudc/config.toml
-[connection]
-host = "localhost"
-port = 4242
-auto_connect = true
-auto_reconnect_delay_ms = 2000
-
-[scripting]
-script_dir = "~/dev/mudc-scripts"
-
-[ui]
-default_screen = "debug"
+```lua
+-- ~/.config/mudc/config.lua
+return {
+  connection = {
+    host = "localhost",
+    port = 4242,
+    auto_connect = true,
+    auto_reconnect_delay_ms = 2000
+  },
+  scripting = {
+    script_dir = "~/dev/mudc-scripts"
+  },
+  ui = {
+    default_screen = "debug"
+  }
+}
 ```
 
 ### Production Setup
 
-```toml
-# ~/.config/mudc/config.toml
-[connection]
-host = "mume.org"
-port = 4242
-auto_connect = false
-timeout_ms = 10000
-
-[scripting]
-script_dir = "~/.config/mudc/scripts"
+```lua
+-- ~/.config/mudc/config.lua
+return {
+  connection = {
+    host = "mume.org",
+    port = 4242,
+    auto_connect = false,
+    timeout_ms = 10000
+  },
+  scripting = {
+    script_dir = "~/.config/mudc/scripts"
+  }
+}
 ```
 
 ### Testing Setup
@@ -441,8 +457,9 @@ end
 
 ## Best Practices
 
-1. **Keep secrets out of config.toml**
+1. **Keep secrets out of config.lua**
    - Use environment variables for passwords
+   - Use `os.getenv()` to read environment variables in Lua
    - Consider encrypted credential storage
 
 2. **Use auto_connect sparingly**
@@ -453,7 +470,12 @@ end
    - Too short: fails on slow connections
    - Too long: user waits unnecessarily
 
-4. **Organize scripts by purpose**
+4. **Leverage Lua's dynamic capabilities**
+   - Use conditionals for environment-specific config
+   - Compute values programmatically
+   - Define local variables for reusable values
+
+5. **Organize scripts by purpose**
    ```
    ~/.config/mudc/scripts/
    ├── 01-core.lua       # Load first (prefix with number)
@@ -462,11 +484,11 @@ end
    └── 99-custom.lua     # Load last
    ```
 
-5. **Version control your config**
+6. **Version control your config**
    ```bash
    cd ~/.config/mudc
    git init
-   git add config.toml
+   git add config.lua
    git commit -m "Initial config"
    ```
 
@@ -483,10 +505,13 @@ If you used old config format:
 ```
 
 **New** (v2):
-```toml
-# In config.toml
-[connection]
-port = 4242  # Changed to 4242 for MMapper
+```lua
+-- In config.lua
+return {
+  connection = {
+    port = 4242  -- Changed to 4242 for MMapper
+  }
+}
 ```
 
 ### From Other MUD Clients
@@ -500,10 +525,14 @@ Tintin++ uses `#session name host port`:
 ```
 
 Mudc equivalent:
-```toml
-[connection]
-host = "mume.org"
-port = 4242
+```lua
+-- config.lua
+return {
+  connection = {
+    host = "mume.org",
+    port = 4242
+  }
+}
 ```
 
 #### From Mudlet
@@ -518,4 +547,4 @@ Mudlet stores profiles. For Mudc:
 
 - [Architecture Documentation](./architecture.md) - System design
 - [Event Bus Documentation](./event-bus.md) - Event topics
-- [Scripting Guide](../SCRIPTING.md) - Lua scripting API
+- [Scripting Guide](./scripting.md) - Lua scripting API
