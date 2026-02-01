@@ -19,6 +19,7 @@ defmodule Mudc.UI.EventHandler do
   """
 
   alias TermUI.Event
+  require Logger
 
   @doc """
   Converts a TermUI event into an application message.
@@ -126,13 +127,15 @@ defmodule Mudc.UI.EventHandler do
 
   # Terminal resize
   def event_to_msg(%Event.Resize{width: width, height: height}, _state) do
-    require Logger
     Logger.debug("EventHandler received resize event: #{width}x#{height}")
     {:msg, {:resize, width, height}}
   end
 
+  def event_to_msg(%Event.Mouse{action: :drag}, _state) do
+    :ignore
+  end
+
   def event_to_msg(event, _state) do
-    require Logger
     Logger.debug("EventHandler ignoring event: #{inspect(event)}")
     :ignore
   end
