@@ -125,12 +125,6 @@ defmodule Mudc.UI.EventHandler do
     {:msg, {:char, char}}
   end
 
-  # Terminal resize
-  def event_to_msg(%Event.Resize{width: width, height: height}, _state) do
-    Logger.debug("EventHandler received resize event: #{width}x#{height}")
-    {:msg, {:resize, width, height}}
-  end
-
   def event_to_msg(%Event.Mouse{action: :drag}, _state) do
     :ignore
   end

@@ -99,14 +99,6 @@ defmodule Mudc.UI.Screens.GameScreen do
   end
 
   @doc """
-  Handle resize event - clamp scroll offset.
-  """
-  def handle_resize(%__MODULE__{} = screen, viewport_height) do
-    scroll = ScrollState.clamp(screen.scroll, length(screen.lines), viewport_height)
-    %{screen | scroll: scroll}
-  end
-
-  @doc """
   Render the game screen viewport.
   """
   def render_viewport(screen, viewport_height, term_width) do

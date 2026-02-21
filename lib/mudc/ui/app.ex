@@ -60,6 +60,9 @@ defmodule Mudc.UI.App do
     {width, height} = get_terminal_size()
     viewport_height = calculate_viewport_height(height)
 
+    # Poll terminal size since resize events don't work
+    Process.send_after(self(), :check_terminal_size, 1_000)
+
     %{
       # Terminal dimensions
       term_width: width,
@@ -346,25 +349,6 @@ defmodule Mudc.UI.App do
     {state, []}
   end
 
-  def update({:resize, width, height}, state) do
-    Logger.debug("Window resize detected: #{width}x#{height} (was #{state.term_width}x#{state.term_height})")
-
-    viewport_height = calculate_viewport_height(height)
-
-    # Update screen scroll offsets
-    game_screen = GameScreen.handle_resize(state.game_screen, viewport_height)
-    debug_screen = DebugScreen.handle_resize(state.debug_screen, height, @reserved_lines)
-
-    {%{
-       state
-       | term_width: width,
-         term_height: height,
-         viewport_height: viewport_height,
-         game_screen: game_screen,
-         debug_screen: debug_screen
-     }, []}
-  end
-
   def update(:quit, state) do
     {state, [:quit]}
   end
@@ -461,6 +445,20 @@ defmodule Mudc.UI.App do
       DebugScreen.update_logs(state.debug_screen, log_lines, state.term_height, @reserved_lines)
 
     {%{state | debug_screen: debug_screen}, []}
+  end
+
+  def handle_info(:check_terminal_size, state) do
+    {width, height} = poll_terminal_size()
+
+    state =
+      if width != state.term_width or height != state.term_height do
+        %{state | term_width: width, term_height: height, viewport_height: calculate_viewport_height(height)}
+      else
+        state
+      end
+
+    Process.send_after(self(), :check_terminal_size, 1_000)
+    {state, []}
   end
 
   def handle_info(_msg, state) do
@@ -661,6 +659,30 @@ defmodule Mudc.UI.App do
   # ----------------------------------------------------------------------------
   # Terminal Size Helpers
   # ----------------------------------------------------------------------------
+
+  # Poll size via stty, bypassing :io.rows/:io.columns which cache on WSL2
+  defp poll_terminal_size do
+    case System.cmd("stty", ["size"], stderr_to_stdout: true) do
+      {output, 0} ->
+        case String.split(String.trim(output)) do
+          [rows_str, cols_str] ->
+            with {rows, ""} <- Integer.parse(rows_str),
+                 {cols, ""} <- Integer.parse(cols_str) do
+              {cols, rows}
+            else
+              _ -> get_terminal_size()
+            end
+
+          _ ->
+            get_terminal_size()
+        end
+
+      _ ->
+        get_terminal_size()
+    end
+  rescue
+    _ -> get_terminal_size()
+  end
 
   defp get_terminal_size do
     case Terminal.get_terminal_size() do

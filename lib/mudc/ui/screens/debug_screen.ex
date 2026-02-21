@@ -102,15 +102,6 @@ defmodule Mudc.UI.Screens.DebugScreen do
   end
 
   @doc """
-  Handle resize event - clamp scroll offset.
-  """
-  def handle_resize(%__MODULE__{} = screen, term_height, reserved_lines) do
-    log_viewport_height = calculate_log_viewport_height(term_height, reserved_lines)
-    scroll = ScrollState.clamp(screen.scroll, length(screen.log_lines), log_viewport_height)
-    %{screen | scroll: scroll}
-  end
-
-  @doc """
   Render the debug screen with dog art and logs.
   """
   def render(screen, term_height, term_width, reserved_lines) do
